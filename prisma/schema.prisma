@@ -1,0 +1,146 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String        @id @default(uuid())
+  email         String        @unique
+  passwordHash  String
+  createdAt     DateTime      @default(now())
+  resumeBlocks  ResumeBlock[]
+  applications  Application[]
+  refreshTokens RefreshToken[]
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Application {
+  id            String          @id @default(uuid())
+  userId        String
+  jdId          String?         @unique
+  company       String
+  roleTitle     String
+  source        String?
+  stage         Stage           @default(SAVED)
+  nextActionAt  DateTime?
+  notes         String?         @db.Text
+  createdAt     DateTime        @default(now())
+  stageEvents   StageEvent[]
+  resumeVersion ResumeVersion?
+  analyses      Analysis[]
+  reminders     Reminder[]
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jd            JobDescription? @relation(fields: [jdId], references: [id])
+
+  @@index([userId, stage])
+}
+
+enum Stage {
+  SAVED
+  APPLIED
+  OA
+  TECH
+  HR
+  OFFER
+  REJECTED
+  GHOSTED
+}
+
+model StageEvent {
+  id            String      @id @default(uuid())
+  applicationId String
+  fromStage     Stage?
+  toStage       Stage
+  at            DateTime    @default(now())
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+}
+
+model JobDescription {
+  id          String      @id @default(uuid())
+  userId      String
+  sourceUrl   String?
+  rawText     String      @db.Text
+  jdHash      String
+  structured  Json?
+  parseStatus ParseStatus @default(QUEUED)
+  parseError  String?
+  embedding   Unsupported("vector(1536)")?
+  createdAt   DateTime    @default(now())
+  application Application?
+
+  @@unique([userId, jdHash])
+}
+
+enum ParseStatus {
+  QUEUED
+  FETCHING
+  PARSING
+  DONE
+  FAILED
+}
+
+model ResumeBlock {
+  id           String    @id @default(uuid())
+  userId       String
+  section      String
+  content      String    @db.Text
+  skillTags    String[]
+  orderDefault Int
+  archivedAt   DateTime?
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ResumeVersion {
+  id            String       @id @default(uuid())
+  userId        String
+  applicationId String?      @unique
+  blocksSnapshot Json
+  pdfKey        String?
+  createdAt     DateTime     @default(now())
+  application   Application? @relation(fields: [applicationId], references: [id])
+}
+
+model Analysis {
+  id              String       @id @default(uuid())
+  applicationId   String
+  kind            AnalysisKind
+  resumeVersionId String?
+  jdHash          String
+  result          Json
+  tokensIn        Int
+  tokensOut       Int
+  costUsd         Decimal      @db.Decimal(8, 5)
+  createdAt       DateTime     @default(now())
+  application     Application  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId, kind, jdHash])
+}
+
+enum AnalysisKind {
+  GAP
+  PREP
+  TAILOR
+}
+
+model Reminder {
+  id            String      @id @default(uuid())
+  applicationId String
+  windowKey     String
+  draftEmail    String?     @db.Text
+  dismissedAt   DateTime?
+  createdAt     DateTime    @default(now())
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, windowKey])
+}

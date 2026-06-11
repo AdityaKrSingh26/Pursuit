@@ -1,0 +1,105 @@
+# ── Dependencies ────────────────────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+# ── Build outputs ────────────────────────────────────────────────────────────────
+dist/
+build/
+out/
+.output/
+*.tsbuildinfo
+
+# ── Environment & secrets ────────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+.env.production
+.env.staging
+
+# ── Logs ────────────────────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ── Testing & coverage ──────────────────────────────────────────────────────────
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+*.lcov
+
+# ── Prisma ──────────────────────────────────────────────────────────────────────
+# Keep migrations and schema; ignore generated client cache
+prisma/generated/
+
+# ── Uploads & generated files ───────────────────────────────────────────────────
+uploads/
+*.pdf
+*.tmp
+*.temp
+
+# ── Editor — VS Code ─────────────────────────────────────────────────────────────
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+
+# ── Editor — JetBrains / IntelliJ ───────────────────────────────────────────────
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# ── Editor — Vim / Neovim ────────────────────────────────────────────────────────
+*.swp
+*.swo
+*~
+.netrwhist
+
+# ── Editor — Emacs ───────────────────────────────────────────────────────────────
+\#*\#
+.#*
+
+# ── OS — macOS ───────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# ── OS — Windows ─────────────────────────────────────────────────────────────────
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# ── OS — Linux ───────────────────────────────────────────────────────────────────
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ── Docker ───────────────────────────────────────────────────────────────────────
+# docker-compose.override.yml contains local dev tweaks; keep out of VCS
+docker-compose.override.yml
+
+# ── Misc ─────────────────────────────────────────────────────────────────────────
+.cache/
+.parcel-cache/
+.turbo/
+.eslintcache
+.stylelintcache
+*.map
+.docs

@@ -1,0 +1,14 @@
+{
+  "scripts": {
+    "lint": "npm --prefix server run lint",
+    "typecheck": "npm --prefix server run typecheck && npm --prefix client run typecheck",
+    "test": "npm --prefix server run test"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2"
+  },
+  "devDependencies": {
+    "@prisma/client": "^7.8.0",
+    "prisma": "^7.8.0"
+  }
+}
