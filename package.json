@@ -1,7 +1,7 @@
 {
   "scripts": {
     "lint": "npm --prefix server run lint",
-    "typecheck": "npm --prefix server run typecheck && npm --prefix client run typecheck",
+    "typecheck": "npm --prefix client run typecheck",
     "test": "npm --prefix server run test"
   },
   "dependencies": {

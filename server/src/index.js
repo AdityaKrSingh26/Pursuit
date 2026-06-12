@@ -1,0 +1,27 @@
+import express from 'express'
+import cookieParser from 'cookie-parser'
+import { authRouter } from './modules/auth/auth.router.js'
+import { AppError } from './lib/errors.js'
+
+const app = express()
+app.use(express.json())
+app.use(cookieParser())
+
+app.get('/health', (_req, res) => res.json({ ok: true }))
+
+app.use('/api/v1/auth', authRouter)
+
+// Global error handler — 4-param signature tells Express this is an error handler
+app.use((err, _req, res, _next) => {
+  if (err instanceof AppError) {
+    res.status(err.statusCode).json({ error: { code: err.code, message: err.message } })
+    return
+  }
+  console.error(err)
+  res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } })
+})
+
+const port = process.env.PORT ?? 3001
+app.listen(port, () => console.log(`API listening on ${port}`))
+
+export { app }
