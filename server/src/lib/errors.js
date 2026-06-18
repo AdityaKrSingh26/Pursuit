@@ -21,4 +21,8 @@ export class AppError extends Error {
   static conflict(message) {
     return new AppError(message, 409, 'CONFLICT')
   }
+
+  static notFound(message = 'Not found') {
+    return new AppError(message, 404, 'NOT_FOUND')
+  }
 }
