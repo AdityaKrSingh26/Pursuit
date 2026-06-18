@@ -28,7 +28,7 @@ model RefreshToken {
 model Application {
   id            String          @id @default(uuid())
   userId        String
-  jdId          String?         @unique
+  jdId          String?
   company       String
   roleTitle     String
   source        String?
@@ -77,7 +77,7 @@ model JobDescription {
   parseError  String?
   embedding   Unsupported("vector(1536)")?
   createdAt   DateTime    @default(now())
-  application Application?
+  applications Application[]
 
   @@unique([userId, jdHash])
 }

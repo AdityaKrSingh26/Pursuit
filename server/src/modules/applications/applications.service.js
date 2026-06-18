@@ -1,22 +1,68 @@
 import { prisma } from '../../lib/db.js'
 import { Prisma } from '@prisma/client'
 import { AppError } from '../../lib/errors.js'
+import { ingestionQueue } from '../../jobs/ingestion/ingestion.queue.js'
+import { computeJdHash } from '../../lib/jdHash.js'
+import { assertSafeUrl } from '../../lib/ssrfGuard.js'
+import crypto from 'crypto'
 
 export async function createApplication(userId, data) {
   // Destructure to separate model columns from ingestion-only/temporary input fields
   const { url, rawJd, salaryText, location, deadline, ...dbData } = data
 
-  const application = await prisma.application.create({
-    data: {
-      ...dbData,
-      userId,
-      stageEvents: {
-        create: {
-          fromStage: null,
-          toStage: 'SAVED',
-        },
+  let jd
+  if (url) {
+    await assertSafeUrl(url)
+    jd = await prisma.jobDescription.findFirst({
+      where: { userId, sourceUrl: url }
+    })
+    if (!jd) {
+      jd = await prisma.jobDescription.create({
+        data: {
+          userId,
+          sourceUrl: url,
+          rawText: rawJd || '',
+          jdHash: 'pending-' + crypto.randomUUID(),
+          parseStatus: 'QUEUED'
+        }
+      })
+      await ingestionQueue.add('parse', { jdId: jd.id })
+    }
+  } else if (rawJd) {
+    const jdHash = computeJdHash(rawJd)
+    jd = await prisma.jobDescription.findFirst({
+      where: { userId, jdHash }
+    })
+    if (!jd) {
+      jd = await prisma.jobDescription.create({
+        data: {
+          userId,
+          rawText: rawJd,
+          jdHash,
+          parseStatus: 'QUEUED'
+        }
+      })
+      await ingestionQueue.add('parse', { jdId: jd.id })
+    }
+  }
+
+  const appData = {
+    ...dbData,
+    userId,
+    stageEvents: {
+      create: {
+        fromStage: null,
+        toStage: 'SAVED',
       },
     },
+  }
+
+  if (jd) {
+    appData.jdId = jd.id
+  }
+
+  const application = await prisma.application.create({
+    data: appData,
     include: {
       stageEvents: {
         orderBy: { at: 'asc' },
