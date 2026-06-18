@@ -3,6 +3,7 @@ import cookieParser from 'cookie-parser'
 import { authRouter } from './modules/auth/auth.router.js'
 import { applicationsRouter } from './modules/applications/applications.router.js'
 import { ingestionRouter } from './modules/ingestion/ingestion.router.js'
+import { analysisRouter } from './modules/analysis/analysis.router.js'
 import { AppError } from './lib/errors.js'
 
 const app = express()
@@ -14,6 +15,7 @@ app.get('/health', (_req, res) => res.json({ ok: true }))
 app.use('/api/v1/auth', authRouter)
 app.use('/api/v1', applicationsRouter)
 app.use('/api/v1', ingestionRouter)
+app.use('/api/v1', analysisRouter)
 
 // Global error handler — 4-param signature tells Express this is an error handler
 app.use((err, _req, res, _next) => {
