@@ -1,0 +1,123 @@
+// Manual mirror of server Zod schemas. Synced by hand until Phase 12 adds codegen.
+
+export type Stage =
+  | 'SAVED'
+  | 'APPLIED'
+  | 'OA'
+  | 'TECH'
+  | 'HR'
+  | 'OFFER'
+  | 'REJECTED'
+  | 'GHOSTED'
+
+export type ParseStatus = 'QUEUED' | 'FETCHING' | 'PARSING' | 'DONE' | 'FAILED'
+
+export interface JdStructured {
+  title: string
+  company: string
+  location: string
+  employmentType: string | null
+  yoeMin: number | null
+  yoeMax: number | null
+  skills: string[]
+  niceToHave: string[]
+  responsibilities: string[]
+  salaryText: string | null
+  applyDeadline: string | null
+}
+
+export interface JobDescription {
+  id: string
+  userId: string
+  sourceUrl: string | null
+  rawText: string
+  jdHash: string
+  structured: JdStructured | null
+  parseStatus: ParseStatus
+  parseError: string | null
+  createdAt: string
+}
+
+export interface StageEvent {
+  id: string
+  applicationId: string
+  fromStage: Stage | null
+  toStage: Stage
+  at: string
+}
+
+export interface Application {
+  id: string
+  userId: string
+  jdId: string | null
+  company: string
+  roleTitle: string
+  source: string | null
+  stage: Stage
+  nextActionAt: string | null
+  notes: string | null
+  createdAt: string
+  stageEvents: StageEvent[]
+  jd: JobDescription | null
+}
+
+export interface ListApplicationsResponse {
+  items: Application[]
+  nextCursor: string | null
+}
+
+export interface JdStatusResponse {
+  id: string
+  parseStatus: ParseStatus
+  parseError: string | null
+  structured: JdStructured | null
+}
+
+export interface GapAnalysis {
+  matchedSkills: string[]
+  missingSkills: string[]
+  partialSkills: string[]
+  bulletRanking: Array<{ blockId: string; relevanceScore: number; reason: string }>
+  riskQuestions: string[]
+  overallSummary: string
+  llmRelevanceScore: number
+  matchScore: number
+  skillOverlapPct: number
+}
+
+export interface PrepQuestion {
+  text: string
+  reason: string
+}
+
+export interface PrepResult {
+  technicalQuestions: PrepQuestion[]
+  behavioralQuestions: PrepQuestion[]
+  gapProbes: PrepQuestion[]
+  companyAngle: string
+}
+
+export interface AnalysisRecord<T = GapAnalysis | PrepResult> {
+  id: string
+  applicationId: string
+  kind: 'GAP' | 'PREP' | 'TAILOR'
+  resumeVersionId: string | null
+  jdHash: string
+  result: T
+  tokensIn: number
+  tokensOut: number
+  costUsd: string
+  createdAt: string
+}
+
+export interface AuthUser {
+  id: string
+  email: string
+}
+
+// SSE event union emitted by the analysis routes.
+export type SSEEvent<T> =
+  | { type: 'token'; content: string }
+  | { type: 'result'; data: T }
+  | { type: 'done' }
+  | { type: 'error'; message: string }
