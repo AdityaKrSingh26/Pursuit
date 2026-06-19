@@ -2,6 +2,7 @@ import { prisma } from '../../lib/db.js'
 import { fetchAndExtract } from './fetcher.js'
 import { parseJd } from './jdParser.js'
 import { computeJdHash } from '../../lib/jdHash.js'
+import { embeddingQueue } from '../embedding/embedding.queue.js'
 
 export async function ingestionProcessor(job) {
   const { jdId } = job.data
@@ -38,6 +39,7 @@ export async function ingestionProcessor(job) {
         where: { id: jdId },
         data: { parseStatus: 'DONE', jdHash, structured: existing.structured },
       })
+      await embeddingQueue.add('embed', { jdId })
       return
     }
 
@@ -46,6 +48,7 @@ export async function ingestionProcessor(job) {
       where: { id: jdId },
       data: { parseStatus: 'DONE', structured, jdHash },
     })
+    await embeddingQueue.add('embed', { jdId })
   } catch (e) {
     await prisma.jobDescription.update({
       where: { id: jdId },

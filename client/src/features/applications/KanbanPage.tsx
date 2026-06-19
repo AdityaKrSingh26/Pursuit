@@ -158,7 +158,7 @@ export default function KanbanPage() {
       </div>
 
       {adding && <AddApplicationModal onClose={() => setAdding(false)} />}
-      {openId && <DetailDrawer id={openId} onClose={() => setOpenId(null)} />}
+      {openId && <DetailDrawer id={openId} onClose={() => setOpenId(null)} onSelectApp={(id) => setOpenId(id)} />}
     </div>
   )
 }

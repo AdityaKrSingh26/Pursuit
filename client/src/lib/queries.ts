@@ -17,6 +17,10 @@ import type {
   StageEvent,
   DashboardFunnelResponse,
   DashboardVelocityResponse,
+  SkillDemandResponse,
+  GapFrequencyResponse,
+  ClusterResponse,
+  SimilarJobsResponse,
 } from './types'
 
 export const queryClient = new QueryClient({
@@ -168,5 +172,34 @@ export function useDashboardVelocity() {
   return useQuery({
     queryKey: ['dashboard-velocity'],
     queryFn: () => api<DashboardVelocityResponse>('/dashboard/velocity'),
+  })
+}
+
+export function useSkillDemand() {
+  return useQuery({
+    queryKey: ['intel-skill-demand'],
+    queryFn: () => api<SkillDemandResponse>('/intel/skill-demand'),
+  })
+}
+
+export function useGapFrequency() {
+  return useQuery({
+    queryKey: ['intel-gap-frequency'],
+    queryFn: () => api<GapFrequencyResponse>('/intel/gap-frequency'),
+  })
+}
+
+export function useClusters() {
+  return useQuery({
+    queryKey: ['intel-clusters'],
+    queryFn: () => api<ClusterResponse>('/intel/clusters'),
+  })
+}
+
+export function useSimilarJobs(appId: string | null) {
+  return useQuery({
+    queryKey: ['intel-similar', appId],
+    queryFn: () => api<SimilarJobsResponse>(`/applications/${appId}/similar`),
+    enabled: !!appId,
   })
 }

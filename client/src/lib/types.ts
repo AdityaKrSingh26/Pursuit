@@ -160,3 +160,39 @@ export interface DashboardVelocityResponse {
     totalThisMonth: number
   }
 }
+
+export interface SkillDemandResponseItem {
+  skill: string
+  count: number
+  pct: number
+}
+export type SkillDemandResponse = SkillDemandResponseItem[]
+
+export interface GapFrequencyResponseItem {
+  skill: string
+  missingCount: number
+  demandPct: number
+}
+export type GapFrequencyResponse = GapFrequencyResponseItem[]
+
+export interface ClusterResponseItem {
+  label: string
+  skills: string[]
+  jobIds: string[]
+  size: number
+  applications: Array<{
+    id: string
+    company: string
+    roleTitle: string
+  }>
+}
+export type ClusterResponse = ClusterResponseItem[]
+
+export interface SimilarJobsResponseItem {
+  id: string
+  company: string
+  roleTitle: string
+  similarity: number
+}
+export type SimilarJobsResponse = SimilarJobsResponseItem[]
+

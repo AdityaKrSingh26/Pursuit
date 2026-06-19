@@ -11,6 +11,7 @@ import { fmtDate, fmtDateTime } from '../../lib/format'
 import ParseStatusBadge from './ParseStatusBadge'
 import GapAnalysisTab from './GapAnalysisTab'
 import PrepTab from './PrepTab'
+import SimilarJobsSidebar from '../intel/SimilarJobsSidebar'
 import type { Stage } from '../../lib/types'
 
 type Tab = 'overview' | 'timeline' | 'gap' | 'prep'
@@ -21,7 +22,15 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'prep', label: 'Interview prep' },
 ]
 
-export default function DetailDrawer({ id, onClose }: { id: string; onClose: () => void }) {
+export default function DetailDrawer({
+  id,
+  onClose,
+  onSelectApp,
+}: {
+  id: string
+  onClose: () => void
+  onSelectApp?: (id: string) => void
+}) {
   const { data: app, isLoading } = useApplication(id)
   const history = useStageHistory(id)
   const patch = usePatchApplication()
@@ -206,6 +215,8 @@ export default function DetailDrawer({ id, onClose }: { id: string; onClose: () 
                       No structured job description yet.
                     </p>
                   )}
+
+                  <SimilarJobsSidebar appId={id} onSelectApp={onSelectApp} />
 
                   <div className="border-t-[1.5px] border-line pt-4">
                     {confirmDelete ? (

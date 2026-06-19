@@ -145,7 +145,7 @@ export default function ListPage() {
         )}
       </div>
 
-      {openId && <DetailDrawer id={openId} onClose={() => setOpenId(null)} />}
+      {openId && <DetailDrawer id={openId} onClose={() => setOpenId(null)} onSelectApp={(id) => setOpenId(id)} />}
     </div>
   )
 }

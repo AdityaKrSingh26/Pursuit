@@ -8,6 +8,7 @@ import ListPage from './features/applications/ListPage'
 import DashboardPage from './features/dashboard/DashboardPage'
 import ComingSoon from './features/stubs/ComingSoon'
 import ResumeEditor from './features/resume/ResumeEditor'
+import IntelPage from './features/intel/IntelPage'
 
 export default function App() {
   return (
@@ -23,23 +24,7 @@ export default function App() {
             <Route path="/applications/list" element={<ListPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/resume" element={<ResumeEditor />} />
-            <Route
-              path="/intelligence"
-              element={
-                <ComingSoon
-                  index="05"
-                  title="Intel"
-                  subtitle="Aggregate signal across every saved job description."
-                  phase="Phase 10"
-                  cards={[
-                    { name: 'Skill demand', detail: 'Top skills across your targets and how that mix shifts over time.' },
-                    { name: 'Gap frequency', detail: 'Which missing skills show up in the largest share of your roles.' },
-                    { name: 'Similar jobs', detail: 'Embedding cosine top-k for any application.' },
-                    { name: 'Clusters', detail: 'Roles grouped by similarity, labeled by dominant skills.' },
-                  ]}
-                />
-              }
-            />
+            <Route path="/intelligence" element={<IntelPage />} />
             <Route
               path="/reminders"
               element={
