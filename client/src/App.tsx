@@ -7,6 +7,7 @@ import KanbanPage from './features/applications/KanbanPage'
 import ListPage from './features/applications/ListPage'
 import DashboardPage from './features/dashboard/DashboardPage'
 import ComingSoon from './features/stubs/ComingSoon'
+import ResumeEditor from './features/resume/ResumeEditor'
 
 export default function App() {
   return (
@@ -21,23 +22,7 @@ export default function App() {
             <Route path="/" element={<KanbanPage />} />
             <Route path="/applications/list" element={<ListPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
-            <Route
-              path="/resume"
-              element={
-                <ComingSoon
-                  index="04"
-                  title="Resume"
-                  subtitle="Block-structured master resume and per-application tailoring."
-                  phase="Phase 08"
-                  cards={[
-                    { name: 'Master blocks', detail: 'Editable experience, projects, skills, and education blocks with skill tags.' },
-                    { name: 'Tailoring diff', detail: 'LLM-proposed reorder and rewrites with accept / edit / reject per bullet.' },
-                    { name: 'Versioned PDFs', detail: 'Immutable resume snapshots rendered server-side and linked to each application.' },
-                    { name: 'Drag reorder', detail: 'Reorder blocks within a section; archive without deleting.' },
-                  ]}
-                />
-              }
-            />
+            <Route path="/resume" element={<ResumeEditor />} />
             <Route
               path="/intelligence"
               element={

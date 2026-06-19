@@ -121,3 +121,25 @@ export type SSEEvent<T> =
   | { type: 'result'; data: T }
   | { type: 'done' }
   | { type: 'error'; message: string }
+
+export interface ResumeBlock {
+  id: string
+  userId: string
+  section: string
+  content: string
+  skillTags: string[]
+  orderDefault: number
+  archivedAt: string | null
+}
+
+export interface TailoringProposal {
+  blockId: string
+  action: 'include' | 'exclude' | 'rewrite'
+  rewrittenContent: string | null
+  reason: string
+  originalContent?: string
+}
+
+export interface TailoringResult {
+  proposals: TailoringProposal[]
+}
