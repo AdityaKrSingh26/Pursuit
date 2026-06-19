@@ -6,7 +6,8 @@
     "dev:worker": "node --watch src/worker.js",
     "start": "node src/index.js",
     "test": "vitest run",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "seed": "npx -y tsx src/scripts/seed.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",

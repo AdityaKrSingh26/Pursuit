@@ -1,5 +1,4 @@
 import { vi, describe, it, expect } from 'vitest'
-import dns from 'dns/promises'
 import { assertSafeUrl, SsrfError } from '../ssrfGuard.js'
 
 vi.mock('dns/promises', () => ({

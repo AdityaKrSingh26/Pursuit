@@ -2,7 +2,8 @@
   "scripts": {
     "lint": "npm --prefix server run lint",
     "typecheck": "npm --prefix client run typecheck",
-    "test": "npm --prefix server run test"
+    "test": "npm --prefix server run test",
+    "evals": "npx -y tsx evals/run.ts"
   },
   "dependencies": {
     "dotenv": "^17.4.2"

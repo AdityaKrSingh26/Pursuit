@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import request from 'supertest'
 import { app } from '../../../index.js'
 import { prisma } from '../../../lib/db.js'

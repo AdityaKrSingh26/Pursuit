@@ -5,7 +5,6 @@ import { prisma } from '../../../lib/db.js'
 import { ingestionQueue } from '../../../jobs/ingestion/ingestion.queue.js'
 import { ingestionProcessor } from '../../../jobs/ingestion/processor.js'
 import { parseJd } from '../../../jobs/ingestion/jdParser.js'
-import { fetchAndExtract } from '../../../jobs/ingestion/fetcher.js'
 
 // Mock fetching and LLM parsing
 vi.mock('../../../jobs/ingestion/fetcher.js', () => ({

@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { renderToBuffer, Document, Page, View, Text } from '@react-pdf/renderer'
 
 const SECTION_ORDER = ['EXPERIENCE', 'PROJECTS', 'SKILLS', 'EDUCATION']

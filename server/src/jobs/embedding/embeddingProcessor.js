@@ -14,7 +14,7 @@ export async function embeddingProcessor(job) {
     vector = Array.from({ length: 1536 }, () => Math.random() - 0.5)
   } else {
     try {
-      const response = await fetch('https://api.openai.com/v1/embeddings', {
+      const response = await global.fetch('https://api.openai.com/v1/embeddings', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${env.LLM_API_KEY}`,

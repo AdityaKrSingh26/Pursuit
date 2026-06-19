@@ -126,7 +126,7 @@ describe('Intelligence Integration Tests', () => {
       },
     })
 
-    const app3 = await prisma.application.create({
+    const _app3 = await prisma.application.create({
       data: {
         userId: user.userId,
         company: 'Company Gamma',

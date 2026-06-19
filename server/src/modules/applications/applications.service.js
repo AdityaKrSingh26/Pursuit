@@ -8,7 +8,7 @@ import crypto from 'crypto'
 
 export async function createApplication(userId, data) {
   // Destructure to separate model columns from ingestion-only/temporary input fields
-  const { url, rawJd, salaryText, location, deadline, ...dbData } = data
+  const { url, rawJd, salaryText: _salaryText, location: _location, deadline: _deadline, ...dbData } = data
 
   let jd
   if (url) {

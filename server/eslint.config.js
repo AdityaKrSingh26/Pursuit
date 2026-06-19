@@ -4,6 +4,11 @@ import prettierConfig from 'eslint-config-prettier'
 export default [
   {
     languageOptions: {
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
       globals: {
         // Node.js globals
         process: 'readonly',
@@ -17,6 +22,7 @@ export default [
         setInterval: 'readonly',
         clearInterval: 'readonly',
         URL: 'readonly',
+        React: 'readonly', // react-pdf JSX elements
       },
     },
   },
@@ -24,7 +30,7 @@ export default [
   prettierConfig,
   {
     rules: {
-      'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     },
   },
 ]

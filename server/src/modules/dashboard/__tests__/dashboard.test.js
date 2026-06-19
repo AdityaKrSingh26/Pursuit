@@ -37,11 +37,11 @@ describe('Dashboard Integration Tests', () => {
     const user = await getAuthData('user@example.com')
 
     // Create 3 applications: 1 SAVED, 1 APPLIED, 1 OA
-    const appSaved = await prisma.application.create({
+    const _appSaved = await prisma.application.create({
       data: { userId: user.userId, company: 'Company A', roleTitle: 'Engineer', stage: 'SAVED' },
     })
 
-    const appApplied = await prisma.application.create({
+    const _appApplied = await prisma.application.create({
       data: { userId: user.userId, company: 'Company B', roleTitle: 'Designer', stage: 'APPLIED' },
     })
 

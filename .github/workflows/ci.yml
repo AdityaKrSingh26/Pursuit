@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: |
+          npm install
+          npm --prefix server install
+          npm --prefix client install
+      - name: Run linter
+        run: npm run lint
+      - name: Run typecheck
+        run: npm run typecheck
+      - name: Run tests
+        run: npm run test
+
+  evals:
+    runs-on: ubuntu-latest
+    needs: [ci]
+    if: |
+      contains(toJSON(github.event.commits.*.modified), 'server/src/prompts') ||
+      contains(toJSON(github.event.commits.*.modified), 'server/src/llm')
+    env:
+      DATABASE_URL: postgresql://pursuit:pursuit@localhost:5432/pursuit
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      LLM_MODEL: claude-3-5-sonnet-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: pursuit
+          POSTGRES_PASSWORD: pursuit
+          POSTGRES_DB: pursuit
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: |
+          npm install
+          npm --prefix server install
+      - name: Run migrations
+        run: |
+          npx --prefix server prisma db push
+      - name: Run evals
+        run: npm run evals

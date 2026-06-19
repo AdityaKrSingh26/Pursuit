@@ -106,7 +106,7 @@ describe('Interview Prep Integration Tests', () => {
       }
     })
 
-    const block = await prisma.resumeBlock.create({
+    const _block = await prisma.resumeBlock.create({
       data: {
         id: 'block-1',
         userId: user.userId,

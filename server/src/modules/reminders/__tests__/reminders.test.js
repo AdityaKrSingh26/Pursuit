@@ -62,7 +62,7 @@ describe('Reminders Integration Tests', () => {
     })
 
     // App 2: not stale. APPLIED, created today
-    const appFresh = await prisma.application.create({
+    const _appFresh = await prisma.application.create({
       data: {
         userId: user.userId,
         company: 'Fresh Co',
