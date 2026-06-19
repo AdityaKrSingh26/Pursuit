@@ -196,3 +196,18 @@ export interface SimilarJobsResponseItem {
 }
 export type SimilarJobsResponse = SimilarJobsResponseItem[]
 
+export interface Reminder {
+  id: string
+  windowKey: string
+  draftEmail: string | null
+  createdAt: string
+  daysSince: number
+  application: {
+    company: string
+    roleTitle: string
+    stage: Stage
+  }
+}
+export type PendingRemindersResponse = Reminder[]
+
+

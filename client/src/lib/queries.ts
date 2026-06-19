@@ -21,6 +21,7 @@ import type {
   GapFrequencyResponse,
   ClusterResponse,
   SimilarJobsResponse,
+  PendingRemindersResponse,
 } from './types'
 
 export const queryClient = new QueryClient({
@@ -203,3 +204,21 @@ export function useSimilarJobs(appId: string | null) {
     enabled: !!appId,
   })
 }
+
+export function usePendingReminders() {
+  return useQuery({
+    queryKey: ['reminders'],
+    queryFn: () => api<PendingRemindersResponse>('/reminders/pending'),
+  })
+}
+
+export function useDismissReminder() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api(`/reminders/${id}/dismiss`, { method: 'POST' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['reminders'] })
+    },
+  })
+}
+

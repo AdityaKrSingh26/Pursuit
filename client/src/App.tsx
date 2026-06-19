@@ -6,9 +6,9 @@ import LandingPage from './features/marketing/LandingPage'
 import KanbanPage from './features/applications/KanbanPage'
 import ListPage from './features/applications/ListPage'
 import DashboardPage from './features/dashboard/DashboardPage'
-import ComingSoon from './features/stubs/ComingSoon'
 import ResumeEditor from './features/resume/ResumeEditor'
 import IntelPage from './features/intel/IntelPage'
+import RemindersPanel from './features/reminders/RemindersPanel'
 
 export default function App() {
   return (
@@ -25,21 +25,7 @@ export default function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/resume" element={<ResumeEditor />} />
             <Route path="/intelligence" element={<IntelPage />} />
-            <Route
-              path="/reminders"
-              element={
-                <ComingSoon
-                  index="06"
-                  title="Follow-ups"
-                  subtitle="Catch applications that have gone quiet."
-                  phase="Phase 11"
-                  cards={[
-                    { name: 'Needs follow-up', detail: 'Applications with no stage change for N days surface here.' },
-                    { name: 'Drafted email', detail: 'LLM-drafted follow-up you can copy — never auto-sent.' },
-                  ]}
-                />
-              }
-            />
+            <Route path="/reminders" element={<RemindersPanel />} />
           </Route>
         </Route>
 

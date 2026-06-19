@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../stores/auth'
+import { usePendingReminders } from '../lib/queries'
 
 const NAV = [
   { to: '/', label: 'Pipeline', code: '01', end: true },
@@ -13,6 +14,8 @@ const NAV = [
 export default function Layout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const { data: reminders } = usePendingReminders()
+  const pendingCount = reminders?.length || 0
 
   async function handleLogout() {
     await logout()
@@ -50,6 +53,11 @@ export default function Layout() {
                     {item.code}
                   </span>
                   {item.label}
+                  {item.to === '/reminders' && pendingCount > 0 && (
+                    <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-sm bg-signal px-1 font-mono text-[9px] font-bold text-paper-3">
+                      {pendingCount}
+                    </span>
+                  )}
                 </>
               )}
             </NavLink>
