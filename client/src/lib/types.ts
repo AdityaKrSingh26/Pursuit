@@ -143,3 +143,20 @@ export interface TailoringProposal {
 export interface TailoringResult {
   proposals: TailoringProposal[]
 }
+
+export interface DashboardFunnelResponse {
+  stageCounts: Record<Stage, number>
+  conversionRates: Record<Stage, number | null>
+  ghostRate: number
+  responseRate: number
+  total: number
+  medianDaysInStage: Record<Stage, number>
+}
+
+export interface DashboardVelocityResponse {
+  velocity: Array<{ week: string; count: number }>
+  llmCost: {
+    byWeek: Array<{ week: string; costUsd: number }>
+    totalThisMonth: number
+  }
+}

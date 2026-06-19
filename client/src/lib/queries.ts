@@ -15,6 +15,8 @@ import type {
   PrepResult,
   Stage,
   StageEvent,
+  DashboardFunnelResponse,
+  DashboardVelocityResponse,
 } from './types'
 
 export const queryClient = new QueryClient({
@@ -152,5 +154,19 @@ export function useLatestAnalysis(id: string | null, kind: 'GAP' | 'PREP') {
     enabled: !!id,
     // 404 == "never run" — surface as null rather than an error banner.
     retry: false,
+  })
+}
+
+export function useDashboardFunnel() {
+  return useQuery({
+    queryKey: ['dashboard-funnel'],
+    queryFn: () => api<DashboardFunnelResponse>('/dashboard/funnel'),
+  })
+}
+
+export function useDashboardVelocity() {
+  return useQuery({
+    queryKey: ['dashboard-velocity'],
+    queryFn: () => api<DashboardVelocityResponse>('/dashboard/velocity'),
   })
 }

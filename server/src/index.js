@@ -5,6 +5,7 @@ import { applicationsRouter } from './modules/applications/applications.router.j
 import { ingestionRouter } from './modules/ingestion/ingestion.router.js'
 import { analysisRouter } from './modules/analysis/analysis.router.js'
 import { resumeRouter } from './modules/resume/resume.router.js'
+import { dashboardRouter } from './modules/dashboard/dashboard.router.js'
 import { AppError } from './lib/errors.js'
 
 const app = express()
@@ -18,6 +19,7 @@ app.use('/api/v1', applicationsRouter)
 app.use('/api/v1', ingestionRouter)
 app.use('/api/v1', analysisRouter)
 app.use('/api/v1', resumeRouter)
+app.use('/api/v1', dashboardRouter)
 
 // Global error handler — 4-param signature tells Express this is an error handler
 app.use((err, _req, res, _next) => {
