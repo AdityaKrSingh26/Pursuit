@@ -1,47 +1,58 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
-import { getSignedUrl as awsGetSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { v2 as cloudinary } from 'cloudinary'
 import { env } from './env.js'
 
-function getClient() {
-  if (!env.STORAGE_ENDPOINT || !env.STORAGE_KEY || !env.STORAGE_SECRET) {
+let _cloudinaryConfigured = false
+
+function getCloudinary() {
+  if (_cloudinaryConfigured) return cloudinary
+  if (!env.CLOUDINARY_CLOUD_NAME || !env.CLOUDINARY_API_KEY || !env.CLOUDINARY_API_SECRET) {
     return null
   }
-  return new S3Client({
-    endpoint: env.STORAGE_ENDPOINT,
-    credentials: {
-      accessKeyId: env.STORAGE_KEY,
-      secretAccessKey: env.STORAGE_SECRET,
-    },
-    region: 'auto',
-    forcePathStyle: true, // required for MinIO and R2
+  cloudinary.config({
+    cloud_name: env.CLOUDINARY_CLOUD_NAME,
+    api_key: env.CLOUDINARY_API_KEY,
+    api_secret: env.CLOUDINARY_API_SECRET,
+    secure: true,
   })
+  _cloudinaryConfigured = true
+  return cloudinary
 }
 
 export async function uploadBuffer(key, buffer, contentType) {
-  const client = getClient()
+  const client = getCloudinary()
   if (!client) {
-    console.warn('[storage] STORAGE_ENDPOINT not configured, skipping upload')
+    console.warn('[storage] Cloudinary not configured, skipping upload')
     return
   }
-  await client.send(
-    new PutObjectCommand({
-      Bucket: env.STORAGE_BUCKET,
-      Key: key,
-      Body: buffer,
-      ContentType: contentType,
-    })
-  )
+
+  return new Promise((resolve, reject) => {
+    const stream = client.uploader.upload_stream(
+      {
+        public_id: key,
+        resource_type: 'raw',
+      },
+      (error, result) => {
+        if (error) {
+          console.error('[storage] Cloudinary upload failed:', error)
+          return reject(error)
+        }
+        resolve(result)
+      }
+    )
+    stream.end(buffer)
+  })
 }
 
 export async function getSignedUrl(key, expirySeconds = 300) {
-  const client = getClient()
+  const client = getCloudinary()
   if (!client) {
-    console.warn('[storage] STORAGE_ENDPOINT not configured, returning null URL')
+    console.warn('[storage] Cloudinary not configured, returning null URL')
     return null
   }
-  const command = new GetObjectCommand({
-    Bucket: env.STORAGE_BUCKET,
-    Key: key,
+
+  // Generate and return the secure delivery URL for the raw asset
+  return client.url(key, {
+    secure: true,
+    resource_type: 'raw',
   })
-  return awsGetSignedUrl(client, command, { expiresIn: expirySeconds })
 }

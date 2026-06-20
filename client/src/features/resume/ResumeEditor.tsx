@@ -143,7 +143,7 @@ function AddBlockForm({ section, onAdd }: { section: string; onAdd: (data: Parti
         onClick={() => setOpen(true)}
         className="text-xs text-indigo-500 hover:underline mt-1"
       >
-        + Add block175845
+        + Add block
       </button>
     )
   }

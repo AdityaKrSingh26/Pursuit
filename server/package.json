@@ -2,9 +2,9 @@
   "name": "pursuit-server",
   "type": "module",
   "scripts": {
-    "dev": "node --watch src/index.js",
-    "dev:worker": "node --watch src/worker.js",
-    "start": "node src/index.js",
+    "dev": "node --env-file=../.env --watch src/index.js",
+    "dev:worker": "node --env-file=../.env --watch src/worker.js",
+    "start": "node --env-file=../.env src/index.js",
     "test": "vitest run",
     "lint": "eslint src"
   },
@@ -19,6 +19,7 @@
     "axios": "^1.18.0",
     "bcrypt": "^5.1.1",
     "bullmq": "^5.79.0",
+    "cloudinary": "^2.10.0",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.2",
     "express": "^5.1.0",

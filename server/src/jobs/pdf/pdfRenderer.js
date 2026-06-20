@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars */
+import React from 'react'
 import { renderToBuffer, Document, Page, View, Text } from '@react-pdf/renderer'
 
 const SECTION_ORDER = ['EXPERIENCE', 'PROJECTS', 'SKILLS', 'EDUCATION']
@@ -20,46 +20,63 @@ export async function renderResumePdf(blocks, userInfo) {
     (s) => grouped[s]?.length > 0
   )
 
-  const doc = (
-    <Document>
-      <Page
-        size="A4"
-        style={{ padding: 40, fontFamily: 'Helvetica', fontSize: 11, color: '#222' }}
-      >
-        {/* Header */}
-        <View style={{ marginBottom: 20, borderBottom: '1pt solid #ccc', paddingBottom: 8 }}>
-          <Text style={{ fontSize: 18, fontFamily: 'Helvetica-Bold' }}>{userInfo.email}</Text>
-        </View>
-
-        {/* Sections */}
-        {allSections.map((section) => (
-          <View key={section} style={{ marginBottom: 16 }}>
-            <Text
-              style={{
+  const doc = React.createElement(
+    Document,
+    null,
+    React.createElement(
+      Page,
+      {
+        size: 'A4',
+        style: { padding: 40, fontFamily: 'Helvetica', fontSize: 11, color: '#222' }
+      },
+      React.createElement(
+        View,
+        { style: { marginBottom: 20, borderBottom: '1pt solid #ccc', paddingBottom: 8 } },
+        React.createElement(
+          Text,
+          { style: { fontSize: 18, fontFamily: 'Helvetica-Bold' } },
+          userInfo.email
+        )
+      ),
+      ...allSections.map((section) =>
+        React.createElement(
+          View,
+          { key: section, style: { marginBottom: 16 } },
+          React.createElement(
+            Text,
+            {
+              style: {
                 fontSize: 12,
                 fontFamily: 'Helvetica-Bold',
                 textTransform: 'uppercase',
                 letterSpacing: 1,
                 marginBottom: 6,
                 color: '#444',
-              }}
-            >
-              {section}
-            </Text>
-            {grouped[section].map((block, i) => (
-              <View key={block.id ?? i} style={{ marginBottom: 6 }}>
-                <Text style={{ lineHeight: 1.5 }}>{block.content}</Text>
-                {block.skillTags?.length > 0 && (
-                  <Text style={{ fontSize: 9, color: '#666', marginTop: 2 }}>
-                    {block.skillTags.join(' · ')}
-                  </Text>
-                )}
-              </View>
-            ))}
-          </View>
-        ))}
-      </Page>
-    </Document>
+              }
+            },
+            section
+          ),
+          ...grouped[section].map((block, i) =>
+            React.createElement(
+              View,
+              { key: block.id ?? i, style: { marginBottom: 6 } },
+              React.createElement(
+                Text,
+                { style: { lineHeight: 1.5 } },
+                block.content
+              ),
+              block.skillTags?.length > 0
+                ? React.createElement(
+                    Text,
+                    { style: { fontSize: 9, color: '#666', marginTop: 2 } },
+                    block.skillTags.join(' · ')
+                  )
+                : null
+            )
+          )
+        )
+      )
+    )
   )
 
   const buf = await renderToBuffer(doc)

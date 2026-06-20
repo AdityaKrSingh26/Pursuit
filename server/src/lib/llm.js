@@ -10,10 +10,18 @@ function anthropicClient() {
 }
 
 function openaiClient() {
-  if (!_openai) _openai = new OpenAI({
-    apiKey: env.LLM_API_KEY,
-    ...(env.LLM_BASE_URL ? { baseURL: env.LLM_BASE_URL } : {}),
-  })
+  if (!_openai) {
+    const defaultHeaders = {}
+    if (env.LLM_BASE_URL && env.LLM_BASE_URL.includes('github')) {
+      defaultHeaders['Accept'] = 'application/vnd.github+json'
+      defaultHeaders['X-GitHub-Api-Version'] = '2022-11-28'
+    }
+    _openai = new OpenAI({
+      apiKey: env.LLM_API_KEY,
+      ...(env.LLM_BASE_URL ? { baseURL: env.LLM_BASE_URL } : {}),
+      defaultHeaders,
+    })
+  }
   return _openai
 }
 
@@ -92,12 +100,18 @@ export async function embed(text) {
   const model = env.EMBEDDING_MODEL || 'text-embedding-3-small'
   const baseUrl = env.EMBEDDING_BASE_URL || 'https://api.openai.com/v1'
 
+  const headers = {
+    Authorization: `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
+  }
+  if (baseUrl.includes('github')) {
+    headers['Accept'] = 'application/vnd.github+json'
+    headers['X-GitHub-Api-Version'] = '2022-11-28'
+  }
+
   const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/embeddings`, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify({ model, input: text }),
   })
 
