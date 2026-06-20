@@ -6,7 +6,9 @@ export function generateCsrfToken() {
 }
 
 export function requireCsrf(req, _res, next) {
-  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next()
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    return next()
+  }
   const headerToken = req.headers['x-csrf-token']
   const cookieToken = req.cookies?.csrfToken
   if (!headerToken || !cookieToken || headerToken !== cookieToken) {

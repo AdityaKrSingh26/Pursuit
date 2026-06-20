@@ -2,6 +2,9 @@ import { Router } from 'express'
 import { requireAuth } from '../../middleware/auth.js'
 import { requireCsrf } from '../../middleware/csrf.js'
 import { rateLimitLlm } from '../../middleware/rateLimitLlm.js'
+import { asyncHandler } from '../../lib/asyncHandler.js'
+import { ok } from '../../lib/response.js'
+import { initSse, sendSseEvent } from '../../lib/sse.js'
 import { prisma } from '../../lib/db.js'
 import { AppError } from '../../lib/errors.js'
 import { streamLlm } from '../../llm/llm.service.js'
@@ -13,48 +16,39 @@ import { SYSTEM_PROMPT as PREP_SYSTEM_PROMPT, buildPrepPrompt, VERSION as PREP_V
 import { PrepSchema } from '../../llm/schemas/prep.schema.js'
 
 export const analysisRouter = Router()
-
 analysisRouter.use(requireAuth)
 
-function sendSseEvent(res, data) {
-  res.write(`data: ${JSON.stringify(data)}\n\n`)
+async function loadAppWithJd(appId, userId) {
+  const app = await prisma.application.findUnique({
+    where: { id: appId },
+    include: { jd: true },
+  })
+  if (!app) {
+    throw AppError.notFound('Application not found')
+  }
+  if (app.userId !== userId) {
+    throw AppError.forbidden('Forbidden')
+  }
+  if (!app.jd || app.jd.parseStatus !== 'DONE') {
+    throw AppError.badRequest('Job description not parsed yet')
+  }
+  return app
 }
 
 // POST /applications/:id/analysis/gap
 analysisRouter.post('/applications/:id/analysis/gap', requireCsrf, rateLimitLlm, async (req, res, next) => {
   let app
   try {
-    app = await prisma.application.findUnique({
-      where: { id: req.params.id },
-      include: { jd: true }
-    })
-    if (!app) {
-      throw AppError.notFound('Application not found')
-    }
-    if (app.userId !== req.user.id) {
-      throw AppError.forbidden('Forbidden')
-    }
-    if (!app.jd || app.jd.parseStatus !== 'DONE') {
-      throw AppError.badRequest('Job description not parsed yet')
-    }
+    app = await loadAppWithJd(req.params.id, req.user.id)
   } catch (err) {
     return next(err)
   }
 
-  // Load user's resume blocks
   const resumeBlocks = await prisma.resumeBlock.findMany({
-    where: { userId: req.user.id, archivedAt: null }
+    where: { userId: req.user.id, archivedAt: null },
   })
 
-  // Set SSE Headers
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'X-Accel-Buffering': 'no',
-    'Connection': 'keep-alive',
-  })
-  res.flushHeaders()
-
+  initSse(res)
   const userMessage = buildGapPrompt(app.jd.structured, resumeBlocks)
 
   try {
@@ -65,7 +59,7 @@ analysisRouter.post('/applications/:id/analysis/gap', requireCsrf, rateLimitLlm,
       applicationId: app.id,
       kind: 'GAP',
       jdHash: app.jd.jdHash,
-      resumeVersionId: undefined, // default
+      resumeVersionId: undefined,
       promptVersion: VERSION,
     }, (token) => {
       sendSseEvent(res, { type: 'token', content: token })
@@ -91,47 +85,26 @@ analysisRouter.post('/applications/:id/analysis/prep', requireCsrf, rateLimitLlm
   const limitCheck = await checkPrepRateLimit(req.user.id, req.params.id)
   if (!limitCheck.allowed) {
     return res.status(429).json({
+      ok: false,
       error: {
         code: 'RATE_LIMIT',
-        message: 'Interview prep generation limit reached (3/day for this application)'
+        message: 'Interview prep generation limit reached (3/day for this application)',
       },
-      remaining: 0
     })
   }
 
   let app
   try {
-    app = await prisma.application.findUnique({
-      where: { id: req.params.id },
-      include: { jd: true }
-    })
-    if (!app) {
-      throw AppError.notFound('Application not found')
-    }
-    if (app.userId !== req.user.id) {
-      throw AppError.forbidden('Forbidden')
-    }
-    if (!app.jd || app.jd.parseStatus !== 'DONE') {
-      throw AppError.badRequest('Job description not parsed yet')
-    }
+    app = await loadAppWithJd(req.params.id, req.user.id)
   } catch (err) {
     return next(err)
   }
 
-  // Load user's resume blocks
   const resumeBlocks = await prisma.resumeBlock.findMany({
-    where: { userId: req.user.id, archivedAt: null }
+    where: { userId: req.user.id, archivedAt: null },
   })
 
-  // Set SSE Headers
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'X-Accel-Buffering': 'no',
-    'Connection': 'keep-alive',
-  })
-  res.flushHeaders()
-
+  initSse(res)
   const userMessage = buildPrepPrompt(app.jd.structured, resumeBlocks)
 
   try {
@@ -158,28 +131,22 @@ analysisRouter.post('/applications/:id/analysis/prep', requireCsrf, rateLimitLlm
 })
 
 // GET /applications/:id/analysis/latest
-analysisRouter.get('/applications/:id/analysis/latest', async (req, res, next) => {
-  try {
-    const app = await prisma.application.findUnique({
-      where: { id: req.params.id }
-    })
-    if (!app) {
-      throw AppError.notFound('Application not found')
-    }
-    if (app.userId !== req.user.id) {
-      throw AppError.forbidden('Forbidden')
-    }
-
-    const kind = req.query.kind || 'GAP'
-    const latest = await prisma.analysis.findFirst({
-      where: { applicationId: req.params.id, kind },
-      orderBy: { createdAt: 'desc' }
-    })
-    if (!latest) {
-      throw AppError.notFound('Latest analysis not found')
-    }
-    res.json(latest)
-  } catch (err) {
-    next(err)
+analysisRouter.get('/applications/:id/analysis/latest', asyncHandler(async (req, res) => {
+  const app = await prisma.application.findUnique({ where: { id: req.params.id } })
+  if (!app) {
+    throw AppError.notFound('Application not found')
   }
-})
+  if (app.userId !== req.user.id) {
+    throw AppError.forbidden('Forbidden')
+  }
+
+  const kind = req.query.kind || 'GAP'
+  const latest = await prisma.analysis.findFirst({
+    where: { applicationId: req.params.id, kind },
+    orderBy: { createdAt: 'desc' },
+  })
+  if (!latest) {
+    throw AppError.notFound('Latest analysis not found')
+  }
+  ok(res, latest)
+}))

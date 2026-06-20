@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import request from 'supertest'
-import { app } from '../../../index.js'
-import { prisma } from '../../../lib/db.js'
+import { app } from '../index.js'
+import { prisma } from '../lib/db.js'
 
 beforeEach(async () => {
   await prisma.refreshToken.deleteMany()
@@ -33,14 +33,14 @@ function extractCookie(res, name) {
   return match?.split(';')[0].split('=')[1]
 }
 
-// ── Register ──────────────────────────────────────────────────────────────────
+// Register
 
 describe('POST /api/v1/auth/register', () => {
   it('returns 201 and user object without passwordHash', async () => {
     const res = await register()
     expect(res.status).toBe(201)
-    expect(res.body.email).toBe(VALID_USER.email)
-    expect(res.body.passwordHash).toBeUndefined()
+    expect(res.body.data.email).toBe(VALID_USER.email)
+    expect(res.body.data.passwordHash).toBeUndefined()
   })
 
   it('sets accessToken, refreshToken, csrfToken cookies', async () => {
@@ -78,7 +78,7 @@ describe('POST /api/v1/auth/register', () => {
   })
 })
 
-// ── Login ─────────────────────────────────────────────────────────────────────
+// Login
 
 describe('POST /api/v1/auth/login', () => {
   beforeEach(async () => {
@@ -88,7 +88,7 @@ describe('POST /api/v1/auth/login', () => {
   it('returns 200 with user object', async () => {
     const res = await login()
     expect(res.status).toBe(200)
-    expect(res.body.email).toBe(VALID_USER.email)
+    expect(res.body.data.email).toBe(VALID_USER.email)
   })
 
   it('sets auth cookies', async () => {
@@ -111,7 +111,7 @@ describe('POST /api/v1/auth/login', () => {
   })
 })
 
-// ── Refresh ───────────────────────────────────────────────────────────────────
+// Refresh
 
 describe('POST /api/v1/auth/refresh', () => {
   it('returns 200 and new accessToken cookie', async () => {
@@ -152,7 +152,7 @@ describe('POST /api/v1/auth/refresh', () => {
   })
 })
 
-// ── Logout ────────────────────────────────────────────────────────────────────
+// Logout
 
 describe('POST /api/v1/auth/logout', () => {
   it('clears cookies and subsequent refresh returns 401', async () => {
@@ -171,11 +171,11 @@ describe('POST /api/v1/auth/logout', () => {
   })
 })
 
-// ── CSRF ──────────────────────────────────────────────────────────────────────
+// CSRF
 
 describe('CSRF protection', () => {
   it('blocks POST with mismatched csrf token', async () => {
-    const { requireCsrf } = await import('../../../middleware/csrf.js')
+    const { requireCsrf } = await import('../middleware/csrf.js')
     let errorPassed = null
     const mockReq = { method: 'POST', cookies: {}, headers: {} }
     requireCsrf(mockReq, {}, (err) => { errorPassed = err })
@@ -183,7 +183,7 @@ describe('CSRF protection', () => {
   })
 
   it('passes GET requests without CSRF token', async () => {
-    const { requireCsrf } = await import('../../../middleware/csrf.js')
+    const { requireCsrf } = await import('../middleware/csrf.js')
     let nextCalled = false
     const mockReq = { method: 'GET', cookies: {}, headers: {} }
     requireCsrf(mockReq, {}, () => { nextCalled = true })

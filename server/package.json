@@ -6,8 +6,7 @@
     "dev:worker": "node --watch src/worker.js",
     "start": "node src/index.js",
     "test": "vitest run",
-    "lint": "eslint src",
-    "seed": "npx -y tsx src/scripts/seed.ts"
+    "lint": "eslint src"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",
@@ -27,7 +26,9 @@
     "ipaddr.js": "^2.4.0",
     "jsdom": "^29.1.1",
     "jsonwebtoken": "^9.0.2",
+    "openai": "^6.44.0",
     "pg": "^8.16.0",
+    "puppeteer": "^25.1.0",
     "zod": "^3.25.67"
   },
   "devDependencies": {
@@ -35,7 +36,6 @@
     "eslint": "^9.29.0",
     "eslint-config-prettier": "^10.1.5",
     "prisma": "^7.8.0",
-    "puppeteer": "^25.1.0",
     "supertest": "^7.1.1",
     "vitest": "^3.2.4"
   }

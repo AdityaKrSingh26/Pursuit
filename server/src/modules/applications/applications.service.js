@@ -87,13 +87,21 @@ export async function updateApplication(userId, id, data) {
   }
 
   const updateData = {}
-  if (data.notes !== undefined) updateData.notes = data.notes
+  if (data.notes !== undefined) {
+    updateData.notes = data.notes
+  }
   if (data.nextActionAt !== undefined) {
     updateData.nextActionAt = data.nextActionAt ? new Date(data.nextActionAt) : null
   }
-  if (data.company !== undefined) updateData.company = data.company
-  if (data.roleTitle !== undefined) updateData.roleTitle = data.roleTitle
-  if (data.source !== undefined) updateData.source = data.source
+  if (data.company !== undefined) {
+    updateData.company = data.company
+  }
+  if (data.roleTitle !== undefined) {
+    updateData.roleTitle = data.roleTitle
+  }
+  if (data.source !== undefined) {
+    updateData.source = data.source
+  }
 
   if (data.stage !== undefined && data.stage !== app.stage) {
     updateData.stage = data.stage
@@ -165,7 +173,7 @@ export async function listApplications(userId, filters) {
 
       for (const item of items) {
         item.stageEvents = stageEvents.filter((se) => se.applicationId === item.id)
-        item.jd = jds.find((jd) => jd.id === item.jdId) || null
+        item.jd = jds.find((jd) => jd.id === item.jdId) ?? null
       }
     }
 

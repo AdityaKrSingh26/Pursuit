@@ -1,15 +1,7 @@
-import Anthropic from '@anthropic-ai/sdk'
 import { env } from '../../lib/env.js'
+import { chat } from '../../lib/llm.js'
 import { JdStructuredSchema } from '../../llm/schemas/jdStructured.schema.js'
 import { buildJdParsePrompt } from '../../prompts/jd-parse.js'
-
-let client
-function getClient() {
-  if (!client) {
-    client = new Anthropic({ apiKey: env.LLM_API_KEY || 'dummy-key' })
-  }
-  return client
-}
 
 export class ParseError extends Error {
   constructor(msg) {
@@ -19,13 +11,11 @@ export class ParseError extends Error {
 }
 
 async function callOnce(rawText, extraInstruction = '') {
-  const anthropic = getClient()
-  const response = await anthropic.messages.create({
-    model: env.LLM_MODEL,
-    max_tokens: env.LLM_MAX_TOKENS,
+  const { text } = await chat({
     messages: [{ role: 'user', content: buildJdParsePrompt(rawText) + extraInstruction }],
+    model: env.LLM_MODEL,
+    maxTokens: env.LLM_MAX_TOKENS,
   })
-  const text = response.content[0].type === 'text' ? response.content[0].text : ''
   return JSON.parse(text)
 }
 

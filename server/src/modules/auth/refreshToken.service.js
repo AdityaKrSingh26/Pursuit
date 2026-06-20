@@ -30,7 +30,7 @@ export async function rotateRefreshToken(raw) {
 
   if (token.expiresAt < new Date()) throw AppError.unauthorized('Refresh token expired')
 
-  // Create new first, then revoke old — safe if DB fails mid-op
+  // Create new first, then revoke old. Safe if DB fails mid-op.
   const newRaw = await createRefreshToken(token.userId)
   await prisma.refreshToken.update({
     where: { id: token.id },

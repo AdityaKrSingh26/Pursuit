@@ -3,7 +3,9 @@ import { AppError } from '../lib/errors.js'
 
 export function requireAuth(req, res, next) {
   const token = req.cookies?.accessToken
-  if (!token) return next(AppError.unauthorized())
+  if (!token) {
+    return next(AppError.unauthorized())
+  }
   try {
     const payload = verifyAccessToken(token)
     req.user = { id: payload.userId }

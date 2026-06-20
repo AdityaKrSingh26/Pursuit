@@ -4,6 +4,9 @@ import { prisma } from '../../lib/db.js'
 import { hashPassword, verifyPassword, hashToken } from '../../lib/crypto.js'
 import { signAccessToken } from '../../lib/jwt.js'
 import { AppError } from '../../lib/errors.js'
+import { asyncHandler } from '../../lib/asyncHandler.js'
+import { validateBody } from '../../lib/validate.js'
+import { ok, created } from '../../lib/response.js'
 import { generateCsrfToken } from '../../middleware/csrf.js'
 import { createRefreshToken, rotateRefreshToken, revokeFamily } from './refreshToken.service.js'
 
@@ -37,79 +40,63 @@ function setAuthCookies(res, accessToken, refreshToken) {
   })
 }
 
-// POST /api/v1/auth/register
-authRouter.post('/register', async (req, res, next) => {
-  try {
-    const parsed = credentialsSchema.safeParse(req.body)
-    if (!parsed.success) throw AppError.badRequest(parsed.error.issues[0].message)
-
-    const { email, password } = parsed.data
-    const existing = await prisma.user.findUnique({ where: { email } })
-    if (existing) throw AppError.conflict('Email already registered')
-
-    const passwordHash = await hashPassword(password)
-    const user = await prisma.user.create({ data: { email, passwordHash } })
-
-    const rawRefresh = await createRefreshToken(user.id)
-    setAuthCookies(res, signAccessToken(user.id), rawRefresh)
-    res.status(201).json({ id: user.id, email: user.email })
-  } catch (err) {
-    next(err)
+authRouter.post('/register', validateBody(credentialsSchema), asyncHandler(async (req, res) => {
+  const { email, password } = req.body
+  const existing = await prisma.user.findUnique({ where: { email } })
+  if (existing) {
+    throw AppError.conflict('Email already registered')
   }
-})
 
-// POST /api/v1/auth/login
-authRouter.post('/login', async (req, res, next) => {
-  try {
-    const parsed = credentialsSchema.safeParse(req.body)
-    if (!parsed.success) throw AppError.badRequest(parsed.error.issues[0].message)
+  const passwordHash = await hashPassword(password)
+  const user = await prisma.user.create({ data: { email, passwordHash } })
 
-    const { email, password } = parsed.data
-    // Always 401 — never reveal whether the email exists
-    const user = await prisma.user.findUnique({ where: { email } })
-    if (!user) throw AppError.unauthorized('Invalid credentials')
+  const rawRefresh = await createRefreshToken(user.id)
+  setAuthCookies(res, signAccessToken(user.id), rawRefresh)
+  created(res, { id: user.id, email: user.email })
+}))
 
-    const valid = await verifyPassword(password, user.passwordHash)
-    if (!valid) throw AppError.unauthorized('Invalid credentials')
-
-    const rawRefresh = await createRefreshToken(user.id)
-    setAuthCookies(res, signAccessToken(user.id), rawRefresh)
-    res.json({ id: user.id, email: user.email })
-  } catch (err) {
-    next(err)
+authRouter.post('/login', validateBody(credentialsSchema), asyncHandler(async (req, res) => {
+  const { email, password } = req.body
+  // Always 401, never reveal whether the email exists
+  const user = await prisma.user.findUnique({ where: { email } })
+  if (!user) {
+    throw AppError.unauthorized('Invalid credentials')
   }
-})
 
-// POST /api/v1/auth/refresh
-authRouter.post('/refresh', async (req, res, next) => {
-  try {
-    const raw = req.cookies?.refreshToken
-    if (!raw) throw AppError.unauthorized('No refresh token')
-
-    const { raw: newRaw, userId } = await rotateRefreshToken(raw)
-    res.cookie('accessToken', signAccessToken(userId), ACCESS_COOKIE_OPTS)
-    res.cookie('refreshToken', newRaw, REFRESH_COOKIE_OPTS)
-    res.json({ ok: true })
-  } catch (err) {
-    next(err)
+  const valid = await verifyPassword(password, user.passwordHash)
+  if (!valid) {
+    throw AppError.unauthorized('Invalid credentials')
   }
-})
 
-// POST /api/v1/auth/logout
-authRouter.post('/logout', async (req, res, next) => {
-  try {
-    const raw = req.cookies?.refreshToken
-    if (raw) {
-      const token = await prisma.refreshToken.findUnique({
-        where: { tokenHash: hashToken(raw) },
-      })
-      if (token) await revokeFamily(token.userId)
+  const rawRefresh = await createRefreshToken(user.id)
+  setAuthCookies(res, signAccessToken(user.id), rawRefresh)
+  ok(res, { id: user.id, email: user.email })
+}))
+
+authRouter.post('/refresh', asyncHandler(async (req, res) => {
+  const raw = req.cookies?.refreshToken
+  if (!raw) {
+    throw AppError.unauthorized('No refresh token')
+  }
+
+  const { raw: newRaw, userId } = await rotateRefreshToken(raw)
+  res.cookie('accessToken', signAccessToken(userId), ACCESS_COOKIE_OPTS)
+  res.cookie('refreshToken', newRaw, REFRESH_COOKIE_OPTS)
+  ok(res, { ok: true })
+}))
+
+authRouter.post('/logout', asyncHandler(async (req, res) => {
+  const raw = req.cookies?.refreshToken
+  if (raw) {
+    const token = await prisma.refreshToken.findUnique({
+      where: { tokenHash: hashToken(raw) },
+    })
+    if (token) {
+      await revokeFamily(token.userId)
     }
-    res.clearCookie('accessToken')
-    res.clearCookie('refreshToken')
-    res.clearCookie('csrfToken')
-    res.json({ ok: true })
-  } catch (err) {
-    next(err)
   }
-})
+  res.clearCookie('accessToken')
+  res.clearCookie('refreshToken')
+  res.clearCookie('csrfToken')
+  ok(res, { ok: true })
+}))

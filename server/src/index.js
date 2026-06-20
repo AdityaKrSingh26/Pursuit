@@ -14,7 +14,9 @@ const app = express()
 app.use(express.json())
 app.use(cookieParser())
 
-app.get('/health', (_req, res) => res.json({ ok: true }))
+app.get('/health', (_req, res) => {
+  res.json({ ok: true })
+})
 
 app.use('/api/v1/auth', authRouter)
 app.use('/api/v1', applicationsRouter)
@@ -25,14 +27,14 @@ app.use('/api/v1', dashboardRouter)
 app.use('/api/v1', intelRouter)
 app.use('/api/v1', remindersRouter)
 
-// Global error handler — 4-param signature tells Express this is an error handler
+// Global error handler (4-param signature tells Express this is an error handler)
 app.use((err, _req, res, _next) => {
   if (err instanceof AppError) {
-    res.status(err.statusCode).json({ error: { code: err.code, message: err.message } })
+    res.status(err.statusCode).json({ ok: false, error: { code: err.code, message: err.message } })
     return
   }
   console.error(err)
-  res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } })
+  res.status(500).json({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } })
 })
 
 const port = process.env.PORT ?? 3001

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeJdHash } from '../jdHash.js'
+import { computeJdHash } from '../lib/jdHash.js'
 
 describe('JD Hashing Unit Tests', () => {
   it('yields matching hashes for identical text with different whitespace and casing', () => {

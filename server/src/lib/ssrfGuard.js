@@ -35,7 +35,7 @@ export async function assertSafeUrl(rawUrl) {
       }
     } catch (e) {
       if (e instanceof SsrfError) throw e
-      // CIDR parse mismatch for wrong IP family — skip
+      // CIDR parse mismatch for wrong IP family, skip
     }
   }
 }

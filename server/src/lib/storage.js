@@ -20,7 +20,7 @@ function getClient() {
 export async function uploadBuffer(key, buffer, contentType) {
   const client = getClient()
   if (!client) {
-    console.warn('[storage] STORAGE_ENDPOINT not configured — skipping upload')
+    console.warn('[storage] STORAGE_ENDPOINT not configured, skipping upload')
     return
   }
   await client.send(
@@ -36,7 +36,7 @@ export async function uploadBuffer(key, buffer, contentType) {
 export async function getSignedUrl(key, expirySeconds = 300) {
   const client = getClient()
   if (!client) {
-    console.warn('[storage] STORAGE_ENDPOINT not configured — returning null URL')
+    console.warn('[storage] STORAGE_ENDPOINT not configured, returning null URL')
     return null
   }
   const command = new GetObjectCommand({

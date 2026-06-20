@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeMatchScore } from '../scoring.js'
+import { computeMatchScore } from '../llm/scoring.js'
 
 describe('Scoring Formula Unit Tests', () => {
   it('handles perfect overlaps (all matched, 0 missing/partial)', () => {
@@ -7,7 +7,7 @@ describe('Scoring Formula Unit Tests', () => {
     const missing = []
     const partial = []
     const result = computeMatchScore(matched, missing, partial, 100)
-    
+
     expect(result.skillOverlapPct).toBe(100)
     expect(result.matchScore).toBe(100)
   })
