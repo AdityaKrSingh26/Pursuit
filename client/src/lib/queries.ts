@@ -157,7 +157,7 @@ export function useLatestAnalysis(id: string | null, kind: 'GAP' | 'PREP') {
         `/applications/${id}/analysis/latest?kind=${kind}`,
       ),
     enabled: !!id,
-    // 404 == "never run" — surface as null rather than an error banner.
+    // 404 means never run. Surface as null rather than an error banner.
     retry: false,
   })
 }

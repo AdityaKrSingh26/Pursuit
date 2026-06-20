@@ -53,7 +53,9 @@ export async function api<T = unknown>(path: string, opts: Options = {}): Promis
   if (!res.ok) throw await parseError(res)
   if (res.status === 204) return undefined as T
   const text = await res.text()
-  return (text ? JSON.parse(text) : undefined) as T
+  const body = text ? JSON.parse(text) : undefined
+  if (body && body.ok === true && 'data' in body) return body.data as T
+  return body as T
 }
 
 export { readCsrf, BASE }

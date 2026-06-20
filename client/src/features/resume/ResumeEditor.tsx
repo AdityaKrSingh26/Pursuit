@@ -22,7 +22,6 @@ import type { ResumeBlock } from '../../lib/types'
 
 const SECTIONS = ['EXPERIENCE', 'PROJECTS', 'SKILLS', 'EDUCATION']
 
-// ─── Sortable block row ───────────────────────────────────────────────────────
 function SortableBlock({
   block,
   onSave,
@@ -127,7 +126,6 @@ function SortableBlock({
   )
 }
 
-// ─── Add block form ───────────────────────────────────────────────────────────
 function AddBlockForm({ section, onAdd }: { section: string; onAdd: (data: Partial<ResumeBlock>) => void }) {
   const [open, setOpen] = useState(false)
   const [content, setContent] = useState('')
@@ -167,7 +165,6 @@ function AddBlockForm({ section, onAdd }: { section: string; onAdd: (data: Parti
   )
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
 export default function ResumeEditor() {
   const qc = useQueryClient()
   const [showArchived, setShowArchived] = useState(false)

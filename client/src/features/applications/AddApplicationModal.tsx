@@ -103,7 +103,7 @@ export default function AddApplicationModal({ onClose }: { onClose: () => void }
             />
           )}
           <p className="mt-1.5 font-mono text-[10px] text-ink-faint">
-            Optional — leave blank to track manually and add the JD later.
+            Optional. Leave blank to track manually and add the JD later.
           </p>
         </div>
 
