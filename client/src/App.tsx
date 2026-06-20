@@ -9,6 +9,7 @@ import DashboardPage from './features/dashboard/DashboardPage'
 import ResumeEditor from './features/resume/ResumeEditor'
 import IntelPage from './features/intel/IntelPage'
 import RemindersPanel from './features/reminders/RemindersPanel'
+import JobsPage from './features/jobs/JobsPage'
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
             <Route path="/resume" element={<ResumeEditor />} />
             <Route path="/intelligence" element={<IntelPage />} />
             <Route path="/reminders" element={<RemindersPanel />} />
+            <Route path="/jobs" element={<JobsPage />} />
           </Route>
         </Route>
 

@@ -132,6 +132,76 @@ export interface ResumeBlock {
   archivedAt: string | null
 }
 
+export type ExperienceContent = {
+  company: string
+  role: string
+  startDate: string
+  endDate: string
+  location: string
+  bullets: string[]
+}
+
+export type ProjectContent = {
+  name: string
+  url: string
+  techStack: string
+  bullets: string[]
+}
+
+export type SkillsContent = {
+  category: string
+  items: string
+}
+
+export type EducationContent = {
+  school: string
+  degree: string
+  startYear: string
+  endYear: string
+  gpa: string
+  bullets: string[]
+}
+
+export type SectionContent = ExperienceContent | ProjectContent | SkillsContent | EducationContent
+
+export function defaultContent(section: string): SectionContent {
+  switch (section.toUpperCase()) {
+    case 'EXPERIENCE':
+      return { company: '', role: '', startDate: '', endDate: 'Present', location: '', bullets: [''] }
+    case 'PROJECTS':
+      return { name: '', url: '', techStack: '', bullets: [''] }
+    case 'SKILLS':
+      return { category: '', items: '' }
+    case 'EDUCATION':
+      return { school: '', degree: '', startYear: '', endYear: '', gpa: '', bullets: [''] }
+    default:
+      return { category: '', items: '' }
+  }
+}
+
+export function parseBlockContent(section: string, raw: string): SectionContent {
+  try {
+    return JSON.parse(raw) as SectionContent
+  } catch {
+    switch (section.toUpperCase()) {
+      case 'EXPERIENCE':
+        return { company: '', role: '', startDate: '', endDate: '', location: '', bullets: raw ? [raw] : [''] }
+      case 'PROJECTS':
+        return { name: '', url: '', techStack: '', bullets: raw ? [raw] : [''] }
+      case 'SKILLS':
+        return { category: '', items: raw }
+      case 'EDUCATION':
+        return { school: '', degree: '', startYear: '', endYear: '', gpa: '', bullets: raw ? [raw] : [''] }
+      default:
+        return { category: '', items: raw }
+    }
+  }
+}
+
+export function serializeBlockContent(data: SectionContent): string {
+  return JSON.stringify(data)
+}
+
 export interface TailoringProposal {
   blockId: string
   action: 'include' | 'exclude' | 'rewrite'
@@ -209,5 +279,30 @@ export interface Reminder {
   }
 }
 export type PendingRemindersResponse = Reminder[]
+
+export interface DiscoveredJob {
+  id: string
+  company: string
+  title: string
+  url: string
+  location: string | null
+  fetchedAt: string
+  score: number | null
+  scoreReason: string | null
+  techStack: string[]
+  scoredAt: string | null
+}
+
+export interface DiscoveredJobsResponse {
+  jobs: DiscoveredJob[]
+  lastScanAt: string | null
+  total: number
+}
+
+export interface ScanStatusResponse {
+  status: 'idle' | 'queued' | 'running'
+  progress: number
+  lastScanAt: string | null
+}
 
 

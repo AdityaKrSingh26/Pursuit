@@ -1,7 +1,5 @@
 import { prisma } from '../../lib/db.js'
-
-// Simple 5-minute in-memory cache for clusters
-const clusterCache = new Map()
+import { cached, CacheKey } from '../../lib/cache.js'
 
 function cosineSim(a, b) {
   let dot = 0
@@ -17,8 +15,17 @@ function cosineSim(a, b) {
 }
 
 export async function getSkillDemand(userId) {
+  return cached(CacheKey.skillDemand(userId), 3600, async () => _getSkillDemand(userId))
+}
+
+async function _getSkillDemand(userId) {
+  // JDs are global — scope to this user via their Applications
   const jds = await prisma.jobDescription.findMany({
-    where: { userId, parseStatus: 'DONE', structured: { not: null } },
+    where: {
+      parseStatus: 'DONE',
+      structured: { not: null },
+      applications: { some: { userId, deletedAt: null } },
+    },
     select: { structured: true },
   })
 
@@ -49,7 +56,7 @@ export async function getSkillDemand(userId) {
 
 export async function getGapFrequency(userId) {
   const applications = await prisma.application.findMany({
-    where: { userId },
+    where: { userId, deletedAt: null },
     select: { id: true },
   })
   const appIds = applications.map((a) => a.id)
@@ -112,12 +119,14 @@ export async function getSimilarJobs(userId, jdId, k = 5) {
 
   const targetVectorStr = target[0].embedding
 
+  // JDs are global; scope to user via Application join. HNSW index handles ANN search.
   const rows = await prisma.$queryRaw`
     SELECT app.id, app.company, app."roleTitle",
            1 - (jd.embedding <=> ${targetVectorStr}::vector) AS similarity
     FROM "JobDescription" jd
     JOIN "Application" app ON app."jdId" = jd.id
-    WHERE jd."userId" = ${userId}
+    WHERE app."userId" = ${userId}
+      AND app."deletedAt" IS NULL
       AND jd.id != ${jdId}
       AND jd.embedding IS NOT NULL
     ORDER BY jd.embedding <=> ${targetVectorStr}::vector
@@ -128,22 +137,23 @@ export async function getSimilarJobs(userId, jdId, k = 5) {
     id: r.id,
     company: r.company,
     roleTitle: r.roleTitle,
-    similarity: Math.max(0, Math.min(1, Number(r.similarity))), // clamp to [0, 1]
+    similarity: Math.max(0, Math.min(1, Number(r.similarity))),
   }))
 }
 
 export async function getClusters(userId) {
-  const now = Date.now()
-  const cached = clusterCache.get(userId)
-  if (cached && now - cached.ts < 5 * 60 * 1000) {
-    return cached.data
-  }
+  return cached(CacheKey.clusters(userId), 300, () => _getClusters(userId))
+}
 
+async function _getClusters(userId) {
+  // JDs are global; scope to user via Application join
   const rows = await prisma.$queryRaw`
     SELECT jd.id, jd.embedding::text, jd.structured, app.id AS "appId", app.company, app."roleTitle"
     FROM "JobDescription" jd
-    LEFT JOIN "Application" app ON app."jdId" = jd.id
-    WHERE jd."userId" = ${userId} AND jd.embedding IS NOT NULL
+    JOIN "Application" app ON app."jdId" = jd.id
+    WHERE app."userId" = ${userId}
+      AND app."deletedAt" IS NULL
+      AND jd.embedding IS NOT NULL
   `
 
   const itemsMap = {}
@@ -152,12 +162,7 @@ export async function getClusters(userId) {
       const rawStr = row.embedding
       const vector = rawStr.slice(1, -1).split(',').map(Number)
       const skills = row.structured?.skills || []
-      itemsMap[row.id] = {
-        id: row.id,
-        vector,
-        skills,
-        applications: [],
-      }
+      itemsMap[row.id] = { id: row.id, vector, skills, applications: [] }
     }
     if (row.appId) {
       itemsMap[row.id].applications.push({
@@ -178,16 +183,11 @@ export async function getClusters(userId) {
 
     for (const item of items) {
       if (assigned.has(item.id)) continue
-
       const neighbors = []
       for (const other of items) {
         if (assigned.has(other.id)) continue
-        const sim = cosineSim(item.vector, other.vector)
-        if (sim >= 0.7) {
-          neighbors.push(other)
-        }
+        if (cosineSim(item.vector, other.vector) >= 0.7) neighbors.push(other)
       }
-
       if (neighbors.length > bestNeighbors.length) {
         bestNeighbors = neighbors
         bestItem = item
@@ -196,42 +196,28 @@ export async function getClusters(userId) {
 
     if (!bestItem) break
 
-    const clusterJobIds = bestNeighbors.map((n) => n.id)
-    for (const jobId of clusterJobIds) {
-      assigned.add(jobId)
-    }
+    for (const n of bestNeighbors) assigned.add(n.id)
 
     const skillFreq = {}
     for (const n of bestNeighbors) {
       for (const skill of n.skills) {
         if (typeof skill === 'string') {
           const key = skill.trim()
-          if (key) {
-            skillFreq[key] = (skillFreq[key] ?? 0) + 1
-          }
+          if (key) skillFreq[key] = (skillFreq[key] ?? 0) + 1
         }
       }
     }
 
-    const topSkills = Object.entries(skillFreq)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([skill]) => skill)
-
-    const clusterApps = []
-    for (const n of bestNeighbors) {
-      clusterApps.push(...n.applications)
-    }
+    const topSkills = Object.entries(skillFreq).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([s]) => s)
 
     clusters.push({
       label: topSkills.join(', ') || 'General Jobs',
       skills: topSkills,
-      jobIds: clusterJobIds,
-      size: clusterJobIds.length,
-      applications: clusterApps,
+      jobIds: bestNeighbors.map((n) => n.id),
+      size: bestNeighbors.length,
+      applications: bestNeighbors.flatMap((n) => n.applications),
     })
   }
 
-  clusterCache.set(userId, { data: clusters, ts: now })
   return clusters
 }

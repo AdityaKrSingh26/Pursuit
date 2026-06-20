@@ -22,6 +22,8 @@ import type {
   ClusterResponse,
   SimilarJobsResponse,
   PendingRemindersResponse,
+  DiscoveredJobsResponse,
+  ScanStatusResponse,
 } from './types'
 
 export const queryClient = new QueryClient({
@@ -218,6 +220,46 @@ export function useDismissReminder() {
     mutationFn: (id: string) => api(`/reminders/${id}/dismiss`, { method: 'POST' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['reminders'] })
+    },
+  })
+}
+
+export function useDiscoveredJobs() {
+  return useQuery({
+    queryKey: ['discovered-jobs'],
+    queryFn: () => api<DiscoveredJobsResponse>('/jobs'),
+    staleTime: 60_000,
+  })
+}
+
+export function useJobScanStatus() {
+  return useQuery({
+    queryKey: ['job-scan-status'],
+    queryFn: () => api<ScanStatusResponse>('/jobs/scan-status'),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status
+      return status === 'running' || status === 'queued' ? 3000 : false
+    },
+  })
+}
+
+export function useRefreshJobs() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api('/jobs/refresh', { method: 'POST' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['job-scan-status'] })
+      qc.invalidateQueries({ queryKey: ['discovered-jobs'] })
+    },
+  })
+}
+
+export function useScoreJobs() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api('/jobs/score', { method: 'POST' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['discovered-jobs'] })
     },
   })
 }

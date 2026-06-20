@@ -14,6 +14,7 @@ model User {
   resumeBlocks  ResumeBlock[]
   applications  Application[]
   refreshTokens RefreshToken[]
+  jobScores     UserJobScore[]
 }
 
 model RefreshToken {
@@ -23,6 +24,8 @@ model RefreshToken {
   expiresAt DateTime
   revokedAt DateTime?
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
 }
 
 model Application {
@@ -36,6 +39,8 @@ model Application {
   nextActionAt  DateTime?
   notes         String?         @db.Text
   createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  deletedAt     DateTime?
   stageEvents   StageEvent[]
   resumeVersion ResumeVersion?
   analyses      Analysis[]
@@ -44,6 +49,8 @@ model Application {
   jd            JobDescription? @relation(fields: [jdId], references: [id])
 
   @@index([userId, stage])
+  @@index([userId, createdAt])
+  @@index([userId, deletedAt])
 }
 
 enum Stage {
@@ -64,22 +71,25 @@ model StageEvent {
   toStage       Stage
   at            DateTime    @default(now())
   application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId, at])
 }
 
+// Global, content-addressed — no userId. Hash deduplicates across all users.
 model JobDescription {
   id          String      @id @default(uuid())
-  userId      String
   sourceUrl   String?
   rawText     String      @db.Text
-  jdHash      String
+  jdHash      String      @unique
   structured  Json?
   parseStatus ParseStatus @default(QUEUED)
   parseError  String?
   embedding   Unsupported("vector(1536)")?
   createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
   applications Application[]
 
-  @@unique([userId, jdHash])
+  @@index([parseStatus])
 }
 
 enum ParseStatus {
@@ -98,17 +108,27 @@ model ResumeBlock {
   skillTags    String[]
   orderDefault Int
   archivedAt   DateTime?
+  updatedAt    DateTime  @updatedAt
   user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+enum RenderStatus {
+  PENDING
+  DONE
+  FAILED
+}
+
 model ResumeVersion {
-  id            String       @id @default(uuid())
-  userId        String
-  applicationId String?      @unique
+  id             String        @id @default(uuid())
+  userId         String
+  applicationId  String?       @unique
   blocksSnapshot Json
-  pdfKey        String?
-  createdAt     DateTime     @default(now())
-  application   Application? @relation(fields: [applicationId], references: [id])
+  pdfKey         String?
+  renderStatus   RenderStatus  @default(PENDING)
+  renderError    String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  application    Application?  @relation(fields: [applicationId], references: [id])
 }
 
 model Analysis {
@@ -143,4 +163,35 @@ model Reminder {
   application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
 
   @@unique([applicationId, windowKey])
+  @@index([applicationId, dismissedAt])
+}
+
+// Global job postings — shared across all users. No userId.
+model DiscoveredJob {
+  id        String         @id @default(uuid())
+  company   String
+  title     String
+  url       String         @unique
+  location  String?
+  rawText   String         @db.Text
+  techStack String[]
+  fetchedAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  scores    UserJobScore[]
+
+  @@index([fetchedAt])
+}
+
+model UserJobScore {
+  id              String        @id @default(uuid())
+  userId          String
+  discoveredJobId String
+  score           Int
+  scoreReason     String
+  scoredAt        DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  discoveredJob   DiscoveredJob @relation(fields: [discoveredJobId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, discoveredJobId])
 }

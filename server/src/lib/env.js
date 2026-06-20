@@ -19,6 +19,7 @@ const schema = z.object({
   CLIENT_URL: z.string().default('http://localhost:5173'),
   PORT: z.coerce.number().default(3001),
   REMINDER_DAYS_THRESHOLD: z.coerce.number().default(7),
+  TINYFISH_API_KEY: z.string().optional(),
 })
 
 export const env = schema

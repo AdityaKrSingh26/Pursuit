@@ -9,6 +9,7 @@ const NAV = [
   { to: '/resume', label: 'Resume', code: '04' },
   { to: '/intelligence', label: 'Intel', code: '05' },
   { to: '/reminders', label: 'Follow-ups', code: '06' },
+  { to: '/jobs', label: 'Discover', code: '07' },
 ]
 
 export default function Layout() {

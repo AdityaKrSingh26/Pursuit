@@ -8,6 +8,7 @@ import { resumeRouter } from './modules/resume/resume.router.js'
 import { dashboardRouter } from './modules/dashboard/dashboard.router.js'
 import { intelRouter } from './modules/intel/intel.router.js'
 import { remindersRouter } from './modules/reminders/reminders.router.js'
+import { jobsRouter } from './modules/jobs/jobs.router.js'
 import { AppError } from './lib/errors.js'
 
 const app = express()
@@ -26,6 +27,7 @@ app.use('/api/v1', resumeRouter)
 app.use('/api/v1', dashboardRouter)
 app.use('/api/v1', intelRouter)
 app.use('/api/v1', remindersRouter)
+app.use('/api/v1', jobsRouter)
 
 // Global error handler (4-param signature tells Express this is an error handler)
 app.use((err, _req, res, _next) => {

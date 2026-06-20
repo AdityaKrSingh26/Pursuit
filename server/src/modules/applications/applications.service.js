@@ -4,6 +4,7 @@ import { AppError } from '../../lib/errors.js'
 import { ingestionQueue } from '../../jobs/ingestion/ingestion.queue.js'
 import { computeJdHash } from '../../lib/jdHash.js'
 import { assertSafeUrl } from '../../lib/ssrfGuard.js'
+import { invalidate, CacheKey } from '../../lib/cache.js'
 import crypto from 'crypto'
 
 export async function createApplication(userId, data) {
@@ -13,13 +14,13 @@ export async function createApplication(userId, data) {
   let jd
   if (url) {
     await assertSafeUrl(url)
+    // JDs are global — look up by sourceUrl across all users
     jd = await prisma.jobDescription.findFirst({
-      where: { userId, sourceUrl: url }
+      where: { sourceUrl: url }
     })
     if (!jd) {
       jd = await prisma.jobDescription.create({
         data: {
-          userId,
           sourceUrl: url,
           rawText: rawJd || '',
           jdHash: 'pending-' + crypto.randomUUID(),
@@ -30,13 +31,13 @@ export async function createApplication(userId, data) {
     }
   } else if (rawJd) {
     const jdHash = computeJdHash(rawJd)
-    jd = await prisma.jobDescription.findFirst({
-      where: { userId, jdHash }
+    // Global dedup: same content hash → same JD row, zero re-processing
+    jd = await prisma.jobDescription.findUnique({
+      where: { jdHash }
     })
     if (!jd) {
       jd = await prisma.jobDescription.create({
         data: {
-          userId,
           rawText: rawJd,
           jdHash,
           parseStatus: 'QUEUED'
@@ -64,12 +65,13 @@ export async function createApplication(userId, data) {
   const application = await prisma.application.create({
     data: appData,
     include: {
-      stageEvents: {
-        orderBy: { at: 'asc' },
-      },
+      stageEvents: { orderBy: { at: 'asc' } },
       jd: true,
     },
   })
+
+  // Invalidate dashboard cache — new application changes funnel counts
+  await invalidate(CacheKey.funnelStats(userId), CacheKey.velocityStats(userId))
 
   return application
 }
@@ -121,12 +123,15 @@ export async function updateApplication(userId, id, data) {
     where: { id },
     data: updateData,
     include: {
-      stageEvents: {
-        orderBy: { at: 'asc' },
-      },
+      stageEvents: { orderBy: { at: 'asc' } },
       jd: true,
     },
   })
+
+  // Stage change → funnel counts change
+  if (updateData.stage) {
+    await invalidate(CacheKey.funnelStats(userId))
+  }
 
   return updated
 }
@@ -135,11 +140,12 @@ export async function listApplications(userId, filters) {
   const limit = filters.limit
 
   if (filters.q) {
-    // Search case - PostgreSQL Full-Text Search (FTS)
+    // Search via pre-built GIN index on search_vector (generated column, O(log n))
     let query = Prisma.sql`
       SELECT * FROM "Application"
       WHERE "userId" = ${userId}
-      AND to_tsvector('english', "company" || ' ' || "roleTitle" || ' ' || COALESCE("notes", '')) @@ plainto_tsquery('english', ${filters.q})
+      AND "deletedAt" IS NULL
+      AND search_vector @@ plainto_tsquery('english', ${filters.q})
     `
 
     if (filters.stage) {
@@ -182,7 +188,7 @@ export async function listApplications(userId, filters) {
   }
 
   // Non-search case
-  const where = { userId }
+  const where = { userId, deletedAt: null }
   if (filters.stage) {
     where.stage = filters.stage
   }
@@ -220,7 +226,7 @@ export async function listApplications(userId, filters) {
 
 export async function getApplication(userId, id) {
   const app = await prisma.application.findUnique({
-    where: { id },
+    where: { id, deletedAt: null },
     include: {
       stageEvents: {
         orderBy: { at: 'asc' },
@@ -246,7 +252,8 @@ export async function getStageHistory(userId, id) {
 
 export async function deleteApplication(userId, id) {
   await getApplication(userId, id)
-  await prisma.application.delete({
+  await prisma.application.update({
     where: { id },
+    data: { deletedAt: new Date() },
   })
 }
