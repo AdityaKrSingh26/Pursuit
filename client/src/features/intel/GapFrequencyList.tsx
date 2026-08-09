@@ -6,10 +6,10 @@ interface GapFrequencyListProps {
 
 export default function GapFrequencyList({ data }: GapFrequencyListProps) {
   return (
-    <div className="press !shadow-hard p-5 bg-[#FBF8F0] border-1.5 border-[#1A1712] h-full flex flex-col">
+    <div className="press !shadow-hard p-5 bg-paper-3 border-[1.5px] border-line h-full flex flex-col">
       <div className="mb-4">
-        <p className="label text-[#1A1712]">Skill Gaps</p>
-        <p className="text-xs text-[#5C5446] mt-0.5">Skills you are missing, ranked by occurrence</p>
+        <p className="label">Skill Gaps</p>
+        <p className="text-xs text-ink-soft mt-0.5">Skills you are missing, ranked by occurrence</p>
       </div>
 
       <div className="flex-1 overflow-y-auto max-h-[420px] pr-1 space-y-2">
@@ -21,21 +21,21 @@ export default function GapFrequencyList({ data }: GapFrequencyListProps) {
             return (
               <div
                 key={item.skill}
-                className="flex items-center justify-between p-3 border-1.5 border-[#1A1712] bg-[#FBF8F0]"
+                className="flex items-center justify-between p-3 border-[1.5px] border-line bg-paper-3"
               >
                 <div>
-                  <span className="font-mono text-xs font-bold text-[#1A1712]">{item.skill}</span>
-                  <p className="text-[10px] text-[#5C5446] font-mono mt-0.5">
+                  <span className="font-mono text-xs font-bold text-ink">{item.skill}</span>
+                  <p className="text-[10px] text-ink-soft font-mono mt-0.5">
                     missing in {item.missingCount} {item.missingCount === 1 ? 'application' : 'applications'}
                   </p>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <span
-                    className={`font-mono text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 border-1.5 border-[#1A1712] ${
+                    className={`font-mono text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 border-[1.5px] border-line ${
                       isHighDemand
-                        ? 'bg-missing text-[#FBF8F0]'
-                        : 'bg-paper-3 text-[#1A1712]'
+                        ? 'bg-missing text-paper-3'
+                        : 'bg-paper-3 text-ink'
                     }`}
                   >
                     {item.demandPct}% Demand

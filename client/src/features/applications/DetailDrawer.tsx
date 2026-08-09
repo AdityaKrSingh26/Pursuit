@@ -11,15 +11,17 @@ import { fmtDate, fmtDateTime } from '../../lib/format'
 import ParseStatusBadge from './ParseStatusBadge'
 import GapAnalysisTab from './GapAnalysisTab'
 import PrepTab from './PrepTab'
+import TailoringDiffView from '../tailoring/TailoringDiffView'
 import SimilarJobsSidebar from '../intel/SimilarJobsSidebar'
 import type { Stage } from '../../lib/types'
 
-type Tab = 'overview' | 'timeline' | 'gap' | 'prep'
+type Tab = 'overview' | 'timeline' | 'gap' | 'prep' | 'tailor'
 const TABS: { key: Tab; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'timeline', label: 'Timeline' },
   { key: 'gap', label: 'Gap analysis' },
   { key: 'prep', label: 'Interview prep' },
+  { key: 'tailor', label: 'Tailor' },
 ]
 
 export default function DetailDrawer({
@@ -136,11 +138,43 @@ export default function DetailDrawer({
                         className="field"
                       />
                     </Field>
-                    {structured?.salaryText && (
-                      <Field label="Salary">
-                        <p className="text-sm">{structured.salaryText}</p>
-                      </Field>
-                    )}
+                    <Field label="Deadline">
+                      <input
+                        type="date"
+                        defaultValue={app.deadline?.slice(0, 10) ?? ''}
+                        onChange={(e) =>
+                          patch.mutate({
+                            id,
+                            patch: {
+                              deadline: e.target.value
+                                ? new Date(e.target.value).toISOString()
+                                : null,
+                            },
+                          })
+                        }
+                        className="field"
+                      />
+                    </Field>
+                    <Field label="Location">
+                      <input
+                        defaultValue={app.location ?? ''}
+                        onBlur={(e) =>
+                          patch.mutate({ id, patch: { location: e.target.value || null } })
+                        }
+                        placeholder="Remote / NYC"
+                        className="field"
+                      />
+                    </Field>
+                    <Field label="Salary">
+                      <input
+                        defaultValue={app.salaryText ?? ''}
+                        onBlur={(e) =>
+                          patch.mutate({ id, patch: { salaryText: e.target.value || null } })
+                        }
+                        placeholder={structured?.salaryText || '$180k–$220k'}
+                        className="field"
+                      />
+                    </Field>
                   </div>
 
                   <div>
@@ -280,6 +314,14 @@ export default function DetailDrawer({
 
               {tab === 'gap' && <GapAnalysisTab appId={id} parsed={parsed} />}
               {tab === 'prep' && <PrepTab appId={id} parsed={parsed} />}
+              {tab === 'tailor' &&
+                (parsed ? (
+                  <TailoringDiffView applicationId={id} />
+                ) : (
+                  <p className="border-l-2 border-partial bg-partial/10 px-3 py-2 font-mono text-[11px] text-partial">
+                    The job description must finish parsing before tailoring can run.
+                  </p>
+                ))}
             </div>
           </>
         )}

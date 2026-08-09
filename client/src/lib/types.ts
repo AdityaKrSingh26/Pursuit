@@ -56,6 +56,9 @@ export interface Application {
   stage: Stage
   nextActionAt: string | null
   notes: string | null
+  salaryText: string | null
+  location: string | null
+  deadline: string | null
   createdAt: string
   stageEvents: StageEvent[]
   jd: JobDescription | null
@@ -121,6 +124,13 @@ export type SSEEvent<T> =
   | { type: 'result'; data: T }
   | { type: 'done' }
   | { type: 'error'; message: string }
+
+export interface ResumeUpload {
+  id: string
+  status: 'QUEUED' | 'FETCHING' | 'PARSING' | 'DONE' | 'FAILED'
+  error: string | null
+  blocksCreated: number
+}
 
 export interface ResumeBlock {
   id: string
@@ -303,6 +313,11 @@ export interface ScanStatusResponse {
   status: 'idle' | 'queued' | 'running'
   progress: number
   lastScanAt: string | null
+}
+
+export interface ScoreStatusResponse {
+  status: 'idle' | 'queued' | 'running'
+  progress: number
 }
 
 

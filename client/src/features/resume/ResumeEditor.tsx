@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   DndContext,
@@ -28,6 +28,7 @@ import type {
   EducationContent,
 } from '../../lib/types'
 import { parseBlockContent, serializeBlockContent, defaultContent } from '../../lib/types'
+import { useUploadResume, useResumeUploadStatus } from '../../lib/queries'
 
 const SECTIONS = ['EXPERIENCE', 'PROJECTS', 'SKILLS', 'EDUCATION']
 
@@ -257,12 +258,14 @@ function BlockEditForm({
   initialTags,
   onSave,
   onCancel,
+  onArchive,
 }: {
   section: string
   initial: SectionContent
   initialTags: string[]
   onSave: (content: string, tags: string[]) => void
   onCancel: () => void
+  onArchive: () => void
 }) {
   const [data, setData] = useState<SectionContent>(initial)
   const [tags, setTags] = useState<string[]>(initialTags)
@@ -295,9 +298,15 @@ function BlockEditForm({
         <EducationForm data={data as EducationContent} onChange={(d) => setData(d)} />
       )}
       {s !== 'SKILLS' && <TagEditor tags={tags} onChange={setTags} />}
-      <div className="flex gap-2 pt-1">
+      <div className="flex items-center gap-2 pt-1">
         <Button variant="signal" onClick={save}>Save</Button>
         <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+        <button
+          onClick={onArchive}
+          className="ml-auto font-mono text-[10px] uppercase tracking-[0.12em] text-signal hover:text-signal-deep"
+        >
+          Archive
+        </button>
       </div>
     </div>
   )
@@ -477,6 +486,7 @@ function SortableBlock({
               setEditing(false)
             }}
             onCancel={() => setEditing(false)}
+            onArchive={() => onArchive(block.id)}
           />
         ) : (
           <BlockViewCard block={block} />
@@ -489,12 +499,6 @@ function SortableBlock({
             className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-soft hover:text-signal"
           >
             Edit
-          </button>
-          <button
-            onClick={() => onArchive(block.id)}
-            className="font-mono text-[10px] uppercase tracking-[0.12em] text-signal hover:text-signal-deep"
-          >
-            Archive
           </button>
         </div>
       )}
@@ -566,6 +570,97 @@ function AddBlockForm({
   )
 }
 
+// ─── Resume upload (drag-drop / file picker) ───────────────────────────────────
+
+function ResumeUploadZone() {
+  const qc = useQueryClient()
+  const [uploadId, setUploadId] = useState<string | null>(null)
+  const [dragOver, setDragOver] = useState(false)
+  const [fileError, setFileError] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const upload = useUploadResume()
+  const { data: status } = useResumeUploadStatus(uploadId)
+
+  useEffect(() => {
+    if (status?.status === 'DONE') {
+      qc.invalidateQueries({ queryKey: ['resume-blocks'] })
+      qc.invalidateQueries({ queryKey: ['resume-blocks-archived'] })
+    }
+  }, [status?.status, qc])
+
+  function handleFile(file: File | undefined) {
+    if (!file) return
+    if (file.type !== 'application/pdf') {
+      setFileError('Only PDF files are supported')
+      return
+    }
+    setFileError(null)
+    setUploadId(null)
+    upload.mutate(file, {
+      onSuccess: (res) => setUploadId(res.id),
+      onError: (e: any) => setFileError(e?.message ?? 'Upload failed'),
+    })
+  }
+
+  const isBusy = status?.status === 'QUEUED' || status?.status === 'PARSING' || status?.status === 'FETCHING' || upload.isPending
+
+  return (
+    <div className="bg-paper-2 border-[1.5px] border-line p-5 space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-ink-soft">
+          Upload Resume
+        </h2>
+        {status?.status === 'DONE' && (
+          <span className="font-mono text-[10px] text-matched">
+            Added {status.blocksCreated} block{status.blocksCreated === 1 ? '' : 's'}
+          </span>
+        )}
+      </div>
+
+      <div
+        onDragOver={(e) => {
+          e.preventDefault()
+          setDragOver(true)
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault()
+          setDragOver(false)
+          handleFile(e.dataTransfer.files[0])
+        }}
+        onClick={() => inputRef.current?.click()}
+        className={`border-[1.5px] border-dashed p-6 text-center cursor-pointer transition-colors ${
+          dragOver ? 'border-signal bg-paper-3' : 'border-line bg-paper'
+        }`}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept="application/pdf"
+          className="hidden"
+          onChange={(e) => handleFile(e.target.files?.[0])}
+        />
+        {isBusy ? (
+          <p className="font-mono text-[10.5px] uppercase tracking-widest text-ink-soft">
+            {status?.status === 'PARSING' ? 'Parsing with LLM…' : 'Uploading…'}
+          </p>
+        ) : (
+          <p className="font-mono text-[10.5px] uppercase tracking-widest text-ink-faint">
+            Drag &amp; drop a PDF resume here, or click to browse
+          </p>
+        )}
+      </div>
+
+      {(fileError || status?.status === 'FAILED') && (
+        <p className="font-mono text-[10px] text-signal">
+          {fileError ?? status?.error ?? 'Parsing failed'}
+        </p>
+      )}
+    </div>
+  )
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function ResumeEditor() {
@@ -591,7 +686,18 @@ export default function ResumeEditor() {
 
   const archiveMutation = useMutation({
     mutationFn: (id: string) => api(`/resume/blocks/${id}`, { method: 'DELETE' }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['resume-blocks'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['resume-blocks'] })
+      qc.invalidateQueries({ queryKey: ['resume-blocks-archived'] })
+    },
+  })
+
+  const restoreMutation = useMutation({
+    mutationFn: (id: string) => api(`/resume/blocks/${id}/restore`, { method: 'POST' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['resume-blocks'] })
+      qc.invalidateQueries({ queryKey: ['resume-blocks-archived'] })
+    },
   })
 
   const createMutation = useMutation({
@@ -623,7 +729,7 @@ export default function ResumeEditor() {
   if (isLoading) return <div className="p-8 font-mono text-[11px] text-ink-faint uppercase tracking-widest">Loading resume…</div>
 
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-10">
+    <div className="h-full overflow-y-auto max-w-2xl mx-auto p-6 space-y-10">
       <div className="flex items-center justify-between">
         <h1 className="font-display text-2xl font-semibold">Resume</h1>
         <label className="flex items-center gap-2 font-mono text-[10.5px] uppercase tracking-[0.14em] text-ink-soft cursor-pointer select-none">
@@ -635,6 +741,8 @@ export default function ResumeEditor() {
           Show archived
         </label>
       </div>
+
+      <ResumeUploadZone />
 
       {SECTIONS.map((section) => {
         const sectionBlocks = blocks
@@ -681,7 +789,7 @@ export default function ResumeEditor() {
       {showArchived && archivedBlocks.length > 0 && (
         <div>
           <h2 className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-ink-soft mb-3">Archived</h2>
-          <div className="space-y-2 opacity-50">
+          <div className="space-y-2">
             {archivedBlocks.map((block) => {
               let preview = block.content
               try {
@@ -691,12 +799,20 @@ export default function ResumeEditor() {
               return (
                 <div
                   key={block.id}
-                  className="bg-paper-2 border-[1.5px] border-line p-3 text-sm text-ink-soft"
+                  className="bg-paper-2 border-[1.5px] border-line p-3 text-sm text-ink-soft opacity-50 hover:opacity-100 flex items-center justify-between gap-3 transition-opacity"
                 >
-                  <span className="font-mono text-[10px] uppercase tracking-wider text-ink-faint mr-2">
-                    {block.section}
+                  <span className="min-w-0 truncate">
+                    <span className="font-mono text-[10px] uppercase tracking-wider text-ink-faint mr-2">
+                      {block.section}
+                    </span>
+                    {preview}
                   </span>
-                  {preview}
+                  <button
+                    onClick={() => restoreMutation.mutate(block.id)}
+                    className="shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] text-ink-soft hover:text-signal"
+                  >
+                    Restore
+                  </button>
                 </div>
               )
             })}

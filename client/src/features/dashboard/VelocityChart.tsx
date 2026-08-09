@@ -19,8 +19,8 @@ export default function VelocityChart({ velocity }: VelocityChartProps) {
   }))
 
   return (
-    <div className="press !shadow-hard p-5 bg-[#FBF8F0] border-1.5 border-[#1A1712]">
-      <p className="label mb-4 text-[#1A1712]">Applications / week (last 8)</p>
+    <div className="press !shadow-hard p-5 bg-paper-3 border-[1.5px] border-line">
+      <p className="label mb-4">Applications / week (last 8)</p>
       <ResponsiveContainer width="100%" height={260}>
         <LineChart data={data} margin={{ top: 4, right: 12, bottom: 0, left: -22 }}>
           <CartesianGrid stroke="#1A171214" vertical={false} />

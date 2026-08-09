@@ -9,10 +9,10 @@ export default function SkillDemandChart({ data }: SkillDemandChartProps) {
   const top20 = data.slice(0, 20)
 
   return (
-    <div className="press !shadow-hard p-5 bg-[#FBF8F0] border-1.5 border-[#1A1712] h-full flex flex-col">
+    <div className="press !shadow-hard p-5 bg-paper-3 border-[1.5px] border-line h-full flex flex-col">
       <div className="mb-4">
-        <p className="label text-[#1A1712]">Skill Demand (Top 20)</p>
-        <p className="text-xs text-[#5C5446] mt-0.5">Frequency of requested skills across parsed JDs</p>
+        <p className="label">Skill Demand (Top 20)</p>
+        <p className="text-xs text-ink-soft mt-0.5">Frequency of requested skills across parsed JDs</p>
       </div>
 
       <div className="flex-1 min-h-[360px]">

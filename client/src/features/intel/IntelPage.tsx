@@ -45,10 +45,10 @@ export default function IntelPage() {
             {/* Bottom Row: Clusters */}
             <div className="space-y-4">
               <div>
-                <h3 className="font-display text-lg font-black text-[#1A1712] uppercase tracking-wider">
+                <h3 className="font-display text-lg font-black text-ink uppercase tracking-wider">
                   Similarity Clusters
                 </h3>
-                <p className="text-xs text-[#5C5446] mt-0.5">
+                <p className="text-xs text-ink-soft mt-0.5">
                   Applications clustered by semantic similarity of their job descriptions
                 </p>
               </div>

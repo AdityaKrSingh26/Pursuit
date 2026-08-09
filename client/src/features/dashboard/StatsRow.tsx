@@ -7,11 +7,11 @@ interface StatsRowProps {
 
 function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div className="press !shadow-hard-sm flex flex-col justify-between p-4 bg-[#FBF8F0] border-1.5 border-[#1A1712]">
-      <span className="label text-xs uppercase tracking-wider text-[#5C5446]">{label}</span>
+    <div className="press !shadow-hard-sm flex flex-col justify-between p-4 bg-paper-3 border-[1.5px] border-line">
+      <span className="label text-xs uppercase tracking-wider">{label}</span>
       <span
         className={`mt-3 font-display text-4xl font-black leading-none ${
-          accent ? 'text-[#DD4814]' : 'text-[#1A1712]'
+          accent ? 'text-signal' : 'text-ink'
         }`}
       >
         {value}

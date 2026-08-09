@@ -42,21 +42,21 @@ export default function RemindersPanel() {
               return (
                 <div
                   key={item.id}
-                  className="press !shadow-hard p-5 bg-[#FBF8F0] border-1.5 border-[#1A1712] flex flex-col"
+                  className="press !shadow-hard p-5 bg-paper-3 border-[1.5px] border-line flex flex-col"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-4 mb-3">
                     <div>
-                      <span className="font-mono text-xs uppercase tracking-wider text-[#5C5446] block">
+                      <span className="font-mono text-xs uppercase tracking-wider text-ink-soft block">
                         {item.application.company}
                       </span>
-                      <span className="font-display text-base font-black text-[#1A1712] block mt-0.5">
+                      <span className="font-display text-base font-black text-ink block mt-0.5">
                         {item.application.roleTitle}
                       </span>
                     </div>
 
                     <div className="flex items-center gap-2">
                       <StageBadge stage={item.application.stage} />
-                      <span className="font-mono text-[10px] text-[#5C5446]">
+                      <span className="font-mono text-[10px] text-ink-soft">
                         {item.daysSince} days since update
                       </span>
                     </div>
@@ -72,14 +72,14 @@ export default function RemindersPanel() {
                       />
                     </div>
                   ) : (
-                    <div className="mt-2 p-4 border border-dashed border-[#1A171233] bg-[#1A171206]">
+                    <div className="mt-2 p-4 border border-dashed border-line/20 bg-line/[0.02]">
                       <p className="font-mono text-xs text-ink-faint">
                         Follow-up email draft failed to generate. Check your LLM API configuration.
                       </p>
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between gap-3 mt-4 pt-3 border-t-1.5 border-[#1A17121a]">
+                  <div className="flex items-center justify-between gap-3 mt-4 pt-3 border-t-[1.5px] border-line/10">
                     <div className="flex items-center gap-2">
                       {item.draftEmail && (
                         <Button
