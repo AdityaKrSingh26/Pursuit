@@ -29,14 +29,16 @@ graph TB
         WI["jd-ingestion\nfetch → parse → embed"]
         WP["pdf-render"]
         WR["reminders  cron 08:00"]
-        WD["job-discovery\nTinyFish scan"]
+        WD["job-discovery\n8 sources + TinyFish fallback"]
+        WS["job-scoring\nper-user LLM relevance score"]
+        WRU["resume-upload\nPDF text extract → LLM structuring"]
         WMV["dashboard-refresh\nREFRESH MATVIEW  15 min"]
     end
 
     subgraph PG["PostgreSQL 16 + pgvector"]
         PG1["Applications · StageEvents\nAnalyses · Reminders\n(RLS enforced)"]
         PG2["JobDescription\ncontent-addressed global\nHNSW embedding index"]
-        PG3["ResumeBlocks · ResumeVersions\n(RLS enforced)"]
+        PG3["ResumeBlocks · ResumeVersions\n· ResumeUpload\n(RLS enforced)"]
         PG4["DiscoveredJob · UserJobScore\n(global + per-user scores)"]
         PG5["mv_user_funnel\nmaterialized view"]
     end
@@ -127,11 +129,13 @@ flowchart TD
     B -- no --> D{scan already\nqueued/running?}
     D -- yes --> E[return status: already_running]
     D -- no --> F[enqueue job-discovery\nto BullMQ]
-    F --> G[Worker: for each company\nin companies.json]
+    F --> G1[Worker: 8 structured sources\nin parallel — YC, Greenhouse, Lever,\nAshby, Remotive, Adzuna, Wellfound, Arbeitnow]
+    G1 --> G[for companies with no ATS id:\nTinyFish careers-page scrape fallback]
     G --> H[TinyFish fetch\ncareers page → markdown]
     H --> I[regex extract\njob links]
     I --> J[TinyFish fetch\nper job page]
-    J --> K[UPSERT DiscoveredJob\nby url — global dedup]
+    G1 --> K[UPSERT DiscoveredJob\nby url — global dedup]
+    J --> K
     K --> L{more companies?}
     L -- yes --> G
     L -- no --> M([scan complete])
@@ -219,6 +223,8 @@ flowchart TB
         Q3["pdf-render\nconcurrency: 2"]
         Q4["reminders\ncron: 0 8 * * *"]
         Q5["job-discovery\nconcurrency: 1"]
+        Q7["job-scoring\nbatch 10 jobs/LLM call"]
+        Q8["resume-upload\nconcurrency: 3"]
         Q6["dashboard-refresh\nevery: 15 min"]
     end
 
@@ -227,7 +233,9 @@ flowchart TB
         Q2 --> J2["embed rawText → vector[1536]\nstore in JobDescription.embedding"]
         Q3 --> J3["render ResumeVersion blocks\nto PDF via react-pdf\nupload to Cloudinary"]
         Q4 --> J4["scan Applications silent > 7 days\ngenerate follow-up email draft\ncreate Reminder rows"]
-        Q5 --> J5["fetch 130+ careers pages\nextract job links\nupsert DiscoveredJob"]
+        Q5 --> J5["8 structured sources in parallel\n+ TinyFish scrape fallback\nupsert DiscoveredJob"]
+        Q7 --> J7["score unscored DiscoveredJobs\nagainst user's ResumeBlocks\nUPSERT UserJobScore"]
+        Q8 --> J8["extract PDF text\nLLM → structured resume blocks\ncreate ResumeBlock rows"]
         Q6 --> J6["REFRESH MATERIALIZED VIEW\nCONCURRENTLY mv_user_funnel"]
     end
 ```
