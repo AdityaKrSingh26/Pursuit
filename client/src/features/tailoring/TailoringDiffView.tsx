@@ -1,19 +1,35 @@
-import { useState, useRef } from 'react'
-import { readCsrf } from '../../lib/api'
-import type { TailoringProposal } from '../../lib/types'
+import { useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Button } from '../../components/ui'
+import { api, ApiError } from '../../lib/api'
+import { streamAnalysis } from '../../lib/sse'
+import type { ResumeBlock, TailoringProposal, TailoringResult } from '../../lib/types'
 
 interface Decision {
   blockId: string
-  content: string   // final content to include
-  include: boolean  // false = rejected/excluded
+  content: string
+  include: boolean
 }
 
-interface TailoringDiffViewProps {
+const actionColor: Record<string, string> = {
+  include: '#1F6B5C',
+  exclude: '#8E8576',
+  rewrite: '#C08A1E',
+}
+
+export default function TailoringDiffView({
+  applicationId,
+  onVersionCreated,
+}: {
   applicationId: string
   onVersionCreated?: (resumeVersionId: string) => void
-}
+}) {
+  const { data: blocks = [] } = useQuery<ResumeBlock[]>({
+    queryKey: ['resume-blocks'],
+    queryFn: () => api<ResumeBlock[]>('/resume/blocks'),
+  })
+  const blockContent = new Map(blocks.map((b) => [b.id, b.content]))
 
-export default function TailoringDiffView({ applicationId, onVersionCreated }: TailoringDiffViewProps) {
   const [proposals, setProposals] = useState<TailoringProposal[]>([])
   const [decisions, setDecisions] = useState<Record<string, Decision>>({})
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -29,44 +45,25 @@ export default function TailoringDiffView({ applicationId, onVersionCreated }: T
     setDecisions({})
     setStreaming(true)
     setError(null)
-    let accumulated = ''
 
     try {
-      const res = await fetch(`/api/v1/applications/${applicationId}/tailor`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'x-csrf-token': readCsrf() ?? '', 'Content-Type': 'application/json' },
+      await streamAnalysis<TailoringResult>(`/applications/${applicationId}/tailor`, (ev) => {
+        if (ev.type === 'result') setProposals(ev.data.proposals ?? [])
+        else if (ev.type === 'error') setError(ev.message)
       })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-
-      const reader = res.body!.getReader()
-      const decoder = new TextDecoder()
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        accumulated += decoder.decode(value, { stream: true })
-        const parts = accumulated.split('\n\n')
-        accumulated = parts.pop() ?? ''
-        for (const part of parts) {
-          if (!part.startsWith('data: ')) continue
-          const evt = JSON.parse(part.slice(6))
-          if (evt.type === 'result') {
-            setProposals(evt.data.proposals ?? [])
-          } else if (evt.type === 'error') {
-            setError(evt.message)
-          }
-        }
-      }
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Unknown error')
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Tailoring failed.')
     } finally {
       setStreaming(false)
     }
   }
 
+  function originalOf(p: TailoringProposal) {
+    return blockContent.get(p.blockId) ?? ''
+  }
+
   function accept(p: TailoringProposal) {
-    const content = p.action === 'rewrite' ? (p.rewrittenContent ?? '') : (p.originalContent ?? '')
+    const content = p.action === 'rewrite' ? (p.rewrittenContent ?? '') : originalOf(p)
     setDecisions((d) => ({ ...d, [p.blockId]: { blockId: p.blockId, content, include: true } }))
     setEditingId(null)
   }
@@ -77,8 +74,7 @@ export default function TailoringDiffView({ applicationId, onVersionCreated }: T
   }
 
   function startEdit(p: TailoringProposal) {
-    const content = p.action === 'rewrite' ? (p.rewrittenContent ?? '') : (p.originalContent ?? '')
-    setEditContent(content)
+    setEditContent(p.action === 'rewrite' ? (p.rewrittenContent ?? '') : originalOf(p))
     setEditingId(p.blockId)
   }
 
@@ -97,130 +93,145 @@ export default function TailoringDiffView({ applicationId, onVersionCreated }: T
 
     setPdfStatus('creating')
     try {
-      const res = await fetch(`/api/v1/applications/${applicationId}/resume-version`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'x-csrf-token': readCsrf() ?? '', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ approvedBlocks }),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const { resumeVersionId } = await res.json()
+      const { resumeVersionId } = await api<{ resumeVersionId: string }>(
+        `/applications/${applicationId}/resume-version`,
+        { method: 'POST', body: { approvedBlocks } },
+      )
       onVersionCreated?.(resumeVersionId)
       setPdfStatus('polling')
       pollRef.current = setInterval(async () => {
-        const pRes = await fetch(`/api/v1/resume-versions/${resumeVersionId}/pdf`, {
-          credentials: 'include',
-        })
-        if (pRes.status === 200) {
-          const { url } = await pRes.json()
-          setPdfUrl(url)
+        const res = await api<{ url?: string; status?: string }>(`/resume-versions/${resumeVersionId}/pdf`)
+        if (res.url) {
+          setPdfUrl(res.url)
           setPdfStatus('ready')
           if (pollRef.current) clearInterval(pollRef.current)
         }
       }, 2000)
-    } catch (e: unknown) {
+    } catch (err) {
       setPdfStatus('error')
-      setError(e instanceof Error ? e.message : 'PDF generation failed')
+      setError(err instanceof ApiError ? err.message : 'PDF generation failed.')
     }
   }
 
-  const actionColor: Record<string, string> = {
-    include: 'bg-blue-100 text-blue-700',
-    exclude: 'bg-gray-100 text-gray-500',
-    rewrite: 'bg-orange-100 text-orange-700',
-  }
-
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-lg">Resume Tailoring</h3>
-        <button
-          onClick={runTailoring}
-          disabled={streaming}
-          className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
-        >
-          {streaming ? 'Generating…' : proposals.length ? 'Regenerate' : 'Generate Proposals'}
-        </button>
+        <p className="text-sm text-ink-soft">
+          Proposes include/exclude/rewrite decisions per resume block against the parsed JD.
+        </p>
+        <Button variant="signal" onClick={runTailoring} disabled={streaming}>
+          {streaming ? 'Generating…' : proposals.length ? '↻ Regenerate' : 'Generate proposals →'}
+        </Button>
       </div>
 
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && (
+        <p className="border-l-2 border-missing bg-missing/10 px-3 py-2 font-mono text-[11px] text-missing">
+          {error}
+        </p>
+      )}
 
       {proposals.length > 0 && (
         <>
-          <div className="text-sm text-gray-500">
-            {decided} / {proposals.length} decisions made
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-1.5">
-            <div
-              className="bg-indigo-500 h-1.5 rounded-full transition-all"
-              style={{ width: `${proposals.length ? (decided / proposals.length) * 100 : 0}%` }}
-            />
+          <div>
+            <p className="label mb-1.5">
+              {decided} / {proposals.length} decisions made
+            </p>
+            <div className="h-1.5 w-full border-[1.5px] border-line bg-paper-3">
+              <div
+                className="h-full bg-signal transition-all"
+                style={{ width: `${proposals.length ? (decided / proposals.length) * 100 : 0}%` }}
+              />
+            </div>
           </div>
 
           <div className="space-y-3">
             {proposals.map((p) => {
               const dec = decisions[p.blockId]
               const isEditing = editingId === p.blockId
-              const proposed = p.action === 'rewrite' ? p.rewrittenContent : p.originalContent
+              const proposed = p.action === 'rewrite' ? p.rewrittenContent : originalOf(p)
+              const color = actionColor[p.action]
 
               return (
-                <div key={p.blockId} className={`border rounded-lg p-4 ${dec ? (dec.include ? 'border-green-300 bg-green-50' : 'border-red-200 bg-red-50 opacity-60') : 'border-gray-200'}`}>
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${actionColor[p.action]}`}>
-                      {p.action.toUpperCase()}
+                <div
+                  key={p.blockId}
+                  className={`border-[1.5px] p-4 ${
+                    dec
+                      ? dec.include
+                        ? 'border-matched bg-matched/10'
+                        : 'border-missing bg-missing/10 opacity-60'
+                      : 'border-line'
+                  }`}
+                >
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <span
+                      className="border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider"
+                      style={{ borderColor: color, backgroundColor: color + '18', color }}
+                    >
+                      {p.action}
                     </span>
                     {!dec && (
-                      <div className="flex gap-2 shrink-0">
-                        <button onClick={() => accept(p)} className="text-xs px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700">Accept</button>
-                        <button onClick={() => startEdit(p)} className="text-xs px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600">Edit</button>
-                        <button onClick={() => reject(p)} className="text-xs px-3 py-1 bg-gray-400 text-white rounded hover:bg-gray-500">Reject</button>
+                      <div className="flex shrink-0 gap-2">
+                        <Button variant="default" className="!px-2 !py-1" onClick={() => accept(p)}>
+                          Accept
+                        </Button>
+                        <Button variant="ghost" className="!px-2 !py-1" onClick={() => startEdit(p)}>
+                          Edit
+                        </Button>
+                        <Button variant="ghost" className="!px-2 !py-1" onClick={() => reject(p)}>
+                          Reject
+                        </Button>
                       </div>
                     )}
                   </div>
 
                   {p.action === 'rewrite' && (
                     <div className="mb-2">
-                      <p className="text-xs text-gray-400 mb-1">Original</p>
-                      <p className="text-sm text-gray-500 line-through">{p.originalContent}</p>
+                      <p className="label mb-1">Original</p>
+                      <p className="text-sm text-ink-faint line-through">{originalOf(p)}</p>
                     </div>
                   )}
 
                   {isEditing ? (
                     <div className="space-y-2">
                       <textarea
-                        className="w-full text-sm border rounded p-2 h-24 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                        className="field h-24 resize-none"
                         value={editContent}
                         onChange={(e) => setEditContent(e.target.value)}
                       />
                       <div className="flex gap-2">
-                        <button onClick={() => saveEdit(p)} className="text-xs px-3 py-1 bg-green-600 text-white rounded">Save</button>
-                        <button onClick={() => setEditingId(null)} className="text-xs px-3 py-1 bg-gray-300 rounded">Cancel</button>
+                        <Button variant="signal" className="!px-2 !py-1" onClick={() => saveEdit(p)}>
+                          Save
+                        </Button>
+                        <Button variant="ghost" className="!px-2 !py-1" onClick={() => setEditingId(null)}>
+                          Cancel
+                        </Button>
                       </div>
                     </div>
                   ) : (
                     <p className="text-sm">{proposed}</p>
                   )}
 
-                  <p className="text-xs text-gray-400 mt-2 italic">{p.reason}</p>
+                  <p className="mt-2 font-mono text-[10.5px] italic text-ink-faint">{p.reason}</p>
                 </div>
               )
             })}
           </div>
 
-          <button
-            onClick={generatePdf}
+          <Button
+            variant="signal"
+            className="w-full"
             disabled={!allDecided || pdfStatus === 'creating' || pdfStatus === 'polling'}
-            className="w-full py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            onClick={generatePdf}
           >
             {pdfStatus === 'polling' ? 'Rendering PDF…' : pdfStatus === 'creating' ? 'Saving…' : 'Generate PDF'}
-          </button>
+          </Button>
 
           {pdfStatus === 'ready' && pdfUrl && (
             <a
               href={pdfUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="block text-center text-sm text-indigo-600 underline"
+              className="block text-center font-mono text-[11px] uppercase tracking-wider text-signal underline"
             >
               Download PDF
             </a>

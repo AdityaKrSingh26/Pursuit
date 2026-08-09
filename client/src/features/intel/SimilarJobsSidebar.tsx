@@ -40,7 +40,7 @@ export default function SimilarJobsSidebar({ appId, onSelectApp }: SimilarJobsSi
             <button
               key={item.id}
               onClick={() => onSelectApp?.(item.id)}
-              className="w-full flex items-center justify-between p-2 border-1.5 border-line bg-paper hover:bg-paper-3 text-left transition-colors"
+              className="w-full flex items-center justify-between p-2 border-[1.5px] border-line bg-paper hover:bg-paper-3 text-left transition-colors"
             >
               <div className="min-w-0 pr-2">
                 <span className="font-mono text-[10px] uppercase tracking-wider text-ink-soft block truncate">

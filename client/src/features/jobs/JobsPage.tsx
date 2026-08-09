@@ -1,5 +1,12 @@
 import { useEffect } from 'react'
-import { useDiscoveredJobs, useJobScanStatus, useRefreshJobs, useScoreJobs } from '../../lib/queries'
+import {
+  useDiscoveredJobs,
+  useJobScanStatus,
+  useJobScoreStatus,
+  useRefreshJobs,
+  useRescoreJobs,
+  useScoreJobs,
+} from '../../lib/queries'
 import { Button } from '../../components/ui'
 import type { DiscoveredJob } from '../../lib/types'
 
@@ -73,11 +80,13 @@ function JobRow({ job }: { job: DiscoveredJob }) {
 export default function JobsPage() {
   const { data, isLoading } = useDiscoveredJobs()
   const { data: scanStatus } = useJobScanStatus()
+  const { data: scoreStatus } = useJobScoreStatus()
   const refresh = useRefreshJobs()
   const score = useScoreJobs()
+  const rescore = useRescoreJobs()
 
   const isScanning = scanStatus?.status === 'running' || scanStatus?.status === 'queued'
-  const isScoring = score.isPending
+  const isScoring = scoreStatus?.status === 'running' || scoreStatus?.status === 'queued'
 
   // Poll jobs when scan completes
   useEffect(() => {
@@ -115,9 +124,13 @@ export default function JobsPage() {
             <Button
               variant={unscoredCount > 0 ? 'signal' : 'ghost'}
               disabled={isScoring || isScanning || jobs.length === 0}
-              onClick={() => score.mutate()}
+              onClick={() => (unscoredCount > 0 ? score.mutate() : rescore.mutate())}
             >
-              {isScoring ? 'SCORING…' : unscoredCount > 0 ? `SCORE FOR RELEVANCE (${unscoredCount})` : 'RE-SCORE'}
+              {isScoring
+                ? `SCORING… ${scoreStatus?.progress ?? 0}%`
+                : unscoredCount > 0
+                ? `SCORE FOR RELEVANCE (${unscoredCount})`
+                : 'RE-SCORE'}
             </Button>
 
             <Button

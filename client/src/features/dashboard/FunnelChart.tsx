@@ -47,8 +47,8 @@ export default function FunnelChart({ stageCounts, conversionRates }: FunnelChar
   }
 
   return (
-    <div className="press !shadow-hard p-5 bg-[#FBF8F0] border-1.5 border-[#1A1712]">
-      <p className="label mb-4 text-[#1A1712]">Stage conversion</p>
+    <div className="press !shadow-hard p-5 bg-paper-3 border-[1.5px] border-line">
+      <p className="label mb-4">Stage conversion</p>
       <ResponsiveContainer width="100%" height={260}>
         <BarChart data={data} margin={{ top: 20, right: 8, bottom: 0, left: -22 }}>
           <CartesianGrid stroke="#1A171214" vertical={false} />

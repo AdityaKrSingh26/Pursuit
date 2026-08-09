@@ -5,7 +5,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
-import { api } from './api'
+import { api, apiUpload } from './api'
 import type {
   AnalysisRecord,
   Application,
@@ -24,6 +24,8 @@ import type {
   PendingRemindersResponse,
   DiscoveredJobsResponse,
   ScanStatusResponse,
+  ScoreStatusResponse,
+  ResumeUpload,
 } from './types'
 
 export const queryClient = new QueryClient({
@@ -116,6 +118,9 @@ export interface PatchApplicationInput {
   company?: string
   roleTitle?: string
   source?: string
+  salaryText?: string | null
+  location?: string | null
+  deadline?: string | null
 }
 
 export function usePatchApplication() {
@@ -260,6 +265,49 @@ export function useScoreJobs() {
     mutationFn: () => api('/jobs/score', { method: 'POST' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['discovered-jobs'] })
+      qc.invalidateQueries({ queryKey: ['job-score-status'] })
+    },
+  })
+}
+
+export function useRescoreJobs() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api('/jobs/rescore', { method: 'POST' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['discovered-jobs'] })
+      qc.invalidateQueries({ queryKey: ['job-score-status'] })
+    },
+  })
+}
+
+export function useUploadResume() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (file: File) => apiUpload<{ id: string; status: string }>('/resume/upload', file),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['resume-blocks'] }),
+  })
+}
+
+export function useResumeUploadStatus(id: string | null) {
+  return useQuery({
+    queryKey: ['resume-upload-status', id],
+    queryFn: () => api<ResumeUpload>(`/resume/uploads/${id}`),
+    enabled: !!id,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status
+      return status === 'QUEUED' || status === 'PARSING' || status === 'FETCHING' ? 2000 : false
+    },
+  })
+}
+
+export function useJobScoreStatus() {
+  return useQuery({
+    queryKey: ['job-score-status'],
+    queryFn: () => api<ScoreStatusResponse>('/jobs/score-status'),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status
+      return status === 'running' || status === 'queued' ? 3000 : false
     },
   })
 }

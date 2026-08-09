@@ -17,10 +17,10 @@ export default function CostWidget({ byWeek, totalThisMonth }: CostWidgetProps) 
   }))
 
   return (
-    <div className="press !shadow-hard p-5 bg-[#FBF8F0] border-1.5 border-[#1A1712] flex flex-col justify-between h-[150px]">
+    <div className="press !shadow-hard p-5 bg-paper-3 border-[1.5px] border-line flex flex-col justify-between h-[150px]">
       <div>
-        <p className="label text-[#5C5446] uppercase text-xs tracking-wider">LLM cost this month</p>
-        <p className="font-display text-3xl font-black text-[#1A1712] mt-1">
+        <p className="label uppercase text-xs tracking-wider">LLM cost this month</p>
+        <p className="font-display text-3xl font-black text-ink mt-1">
           ${totalThisMonth.toFixed(4)}
         </p>
       </div>
