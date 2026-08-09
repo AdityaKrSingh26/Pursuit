@@ -30,7 +30,9 @@ graph TB
         WE["embedding\npgvector 1536-dim"]
         WP["pdf-render\nreact-pdf / puppeteer"]
         WR["reminders\ndaily cron 08:00"]
-        WD["job-discovery\nTinyFish scan"]
+        WD["job-discovery\n8 sources + TinyFish fallback"]
+        WS["job-scoring\nLLM relevance score per user"]
+        WRU["resume-upload\nPDF text extract + LLM structuring"]
         WMV["dashboard-refresh\nREFRESH MATVIEW\nevery 15 min"]
     end
 
@@ -83,7 +85,10 @@ Three on-demand analyses per application, streamed over SSE:
 | **Tailor** | Rewrites resume bullets to mirror JD language while keeping all facts truthful |
 
 ### Job Discovery
-A background scan fetches careers pages from 130+ companies via TinyFish (returns clean markdown), extracts job links, and stores raw descriptions globally. Jobs are shared across all users — one fetch serves everyone. Each user independently clicks "Score for Relevance" to run LLM scoring (0–100 + reason) against their own resume blocks.
+A background scan pulls from 8 structured sources in parallel — YC, Greenhouse, Lever, Ashby, Remotive, Adzuna, Wellfound, Arbeitnow — then falls back to a TinyFish careers-page scrape (returns clean markdown) for the 130+ tracked companies with no known ATS API. Jobs are stored globally and shared across all users — one fetch serves everyone. Each user independently clicks "Score for Relevance" to run LLM scoring (0–100 + reason) against their own resume blocks, with results cached per-user in `UserJobScore`.
+
+### Resume Upload
+Drag-and-drop (or click-to-browse) a PDF resume on `/resume`. The API extracts raw text server-side, queues a background job, and the worker sends the text to the LLM to structure it into typed resume blocks (EXPERIENCE / PROJECTS / SKILLS / EDUCATION), appended to the user's existing blocks. The page polls upload status and refreshes automatically once parsing completes.
 
 ### Intelligence
 Once you have 5+ applications with parsed JDs, the Intel page shows:
@@ -264,7 +269,9 @@ Pursuit/
 │       │   ├── embedding/    # pgvector embeddings
 │       │   ├── pdf/          # PDF render
 │       │   ├── reminders/    # Daily follow-up scan
-│       │   └── discovery/    # TinyFish careers scraper
+│       │   ├── discovery/    # 8 job sources + TinyFish careers-page fallback
+│       │   ├── scoring/      # Per-user LLM relevance scoring
+│       │   └── resumeUpload/ # PDF text extraction + LLM structuring
 │       ├── lib/              # db · redis · llm · cache · jwt · env
 │       ├── prompts/          # LLM prompt builders
 │       └── middleware/       # auth (JWT + RLS) · csrf · rate-limit
@@ -289,13 +296,16 @@ Pursuit/
 | `JWT_REFRESH_SECRET` | Yes | Refresh token signing key (min 16 chars) |
 | `LLM_PROVIDER` | Yes | `openai` or `anthropic` |
 | `LLM_API_KEY` | Yes | API key for your LLM provider |
+| `LLM_API_KEYS` | No | Comma-separated list of keys to rotate through on 429 rate limits (falls back to `LLM_API_KEY` if unset) |
 | `LLM_BASE_URL` | No | Custom base URL (e.g. Groq: `https://api.groq.com/openai/v1`) |
 | `LLM_MODEL` | No | Model name (default: `claude-sonnet-4-6`) |
 | `LLM_MAX_TOKENS` | No | Max tokens per LLM call (default: 2000) |
 | `EMBEDDING_API_KEY` | Yes* | API key for embeddings (*required when using custom LLM base URL) |
 | `EMBEDDING_BASE_URL` | No | Embedding endpoint (default: OpenAI) |
 | `EMBEDDING_MODEL` | No | Embedding model (default: `text-embedding-3-small`) |
-| `TINYFISH_API_KEY` | No | [TinyFish](https://tinyfish.ai) key for job discovery |
+| `TINYFISH_API_KEY` | No | [TinyFish](https://tinyfish.ai) key for the careers-page scrape fallback |
+| `ADZUNA_APP_ID` | No | [Adzuna](https://developer.adzuna.com) app ID, one of the job discovery sources |
+| `ADZUNA_APP_KEY` | No | Adzuna app key |
 | `CLOUDINARY_CLOUD_NAME` | No | Cloudinary for PDF uploads |
 | `CLOUDINARY_API_KEY` | No | Cloudinary API key |
 | `CLOUDINARY_API_SECRET` | No | Cloudinary API secret |
