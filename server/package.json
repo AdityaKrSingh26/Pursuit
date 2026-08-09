@@ -27,7 +27,9 @@
     "ipaddr.js": "^2.4.0",
     "jsdom": "^29.1.1",
     "jsonwebtoken": "^9.0.2",
+    "multer": "^2.2.0",
     "openai": "^6.44.0",
+    "pdf-parse": "^2.4.5",
     "pg": "^8.16.0",
     "puppeteer": "^25.1.0",
     "zod": "^3.25.67"
@@ -39,5 +41,13 @@
     "prisma": "^7.8.0",
     "supertest": "^7.1.1",
     "vitest": "^3.2.4"
+  },
+  "allowScripts": {
+    "@prisma/engines@7.8.0": true,
+    "bcrypt@5.1.1": true,
+    "esbuild@0.27.7": true,
+    "msgpackr-extract@3.0.4": true,
+    "prisma@7.8.0": true,
+    "puppeteer@25.1.0": true
   }
 }

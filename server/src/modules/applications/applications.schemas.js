@@ -19,6 +19,9 @@ export const UpdateApplicationSchema = z.object({
   company: z.string().min(1).optional(),
   roleTitle: z.string().min(1).optional(),
   source: z.string().optional(),
+  salaryText: z.string().optional().nullable(),
+  location: z.string().optional().nullable(),
+  deadline: z.string().datetime().optional().nullable(),
 })
 
 export const ListApplicationsSchema = z.object({

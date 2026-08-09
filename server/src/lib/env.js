@@ -8,6 +8,7 @@ const schema = z.object({
   LLM_PROVIDER: z.enum(['anthropic', 'openai']).default('anthropic'),
   LLM_BASE_URL: z.string().optional(),
   LLM_API_KEY: z.string(),
+  LLM_API_KEYS: z.string().optional(),
   LLM_MODEL: z.string().default('claude-sonnet-4-6'),
   LLM_MAX_TOKENS: z.coerce.number().default(2000),
   EMBEDDING_BASE_URL: z.string().optional(),
@@ -20,6 +21,8 @@ const schema = z.object({
   PORT: z.coerce.number().default(3001),
   REMINDER_DAYS_THRESHOLD: z.coerce.number().default(7),
   TINYFISH_API_KEY: z.string().optional(),
+  ADZUNA_APP_ID: z.string().optional(),
+  ADZUNA_APP_KEY: z.string().optional(),
 })
 
 export const env = schema

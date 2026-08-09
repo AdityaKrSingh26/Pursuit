@@ -8,8 +8,8 @@ import { invalidate, CacheKey } from '../../lib/cache.js'
 import crypto from 'crypto'
 
 export async function createApplication(userId, data) {
-  // Destructure to separate model columns from ingestion-only/temporary input fields
-  const { url, rawJd, salaryText: _salaryText, location: _location, deadline: _deadline, ...dbData } = data
+  // Destructure to separate model columns from ingestion-only input fields
+  const { url, rawJd, ...dbData } = data
 
   let jd
   if (url) {
@@ -49,6 +49,7 @@ export async function createApplication(userId, data) {
 
   const appData = {
     ...dbData,
+    deadline: dbData.deadline ? new Date(dbData.deadline) : undefined,
     userId,
     stageEvents: {
       create: {
@@ -103,6 +104,15 @@ export async function updateApplication(userId, id, data) {
   }
   if (data.source !== undefined) {
     updateData.source = data.source
+  }
+  if (data.salaryText !== undefined) {
+    updateData.salaryText = data.salaryText
+  }
+  if (data.location !== undefined) {
+    updateData.location = data.location
+  }
+  if (data.deadline !== undefined) {
+    updateData.deadline = data.deadline ? new Date(data.deadline) : null
   }
 
   if (data.stage !== undefined && data.stage !== app.stage) {

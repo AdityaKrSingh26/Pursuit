@@ -12,6 +12,7 @@ model User {
   passwordHash  String
   createdAt     DateTime      @default(now())
   resumeBlocks  ResumeBlock[]
+  resumeUploads ResumeUpload[]
   applications  Application[]
   refreshTokens RefreshToken[]
   jobScores     UserJobScore[]
@@ -38,6 +39,9 @@ model Application {
   stage         Stage           @default(SAVED)
   nextActionAt  DateTime?
   notes         String?         @db.Text
+  salaryText    String?
+  location      String?
+  deadline      DateTime?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   deletedAt     DateTime?
@@ -98,6 +102,20 @@ enum ParseStatus {
   PARSING
   DONE
   FAILED
+}
+
+model ResumeUpload {
+  id            String      @id @default(uuid())
+  userId        String
+  fileName      String
+  rawText       String      @db.Text
+  status        ParseStatus @default(QUEUED)
+  error         String?
+  blocksCreated Int         @default(0)
+  createdAt     DateTime    @default(now())
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model ResumeBlock {
@@ -173,6 +191,8 @@ model DiscoveredJob {
   title     String
   url       String         @unique
   location  String?
+  remote    Boolean        @default(false)
+  source    String         @default("tinyfish")
   rawText   String         @db.Text
   techStack String[]
   fetchedAt DateTime       @default(now())
@@ -180,6 +200,7 @@ model DiscoveredJob {
   scores    UserJobScore[]
 
   @@index([fetchedAt])
+  @@index([source])
 }
 
 model UserJobScore {

@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import multer from 'multer'
 import { z } from 'zod'
 import { requireAuth } from '../../middleware/auth.js'
 import { requireCsrf } from '../../middleware/csrf.js'
@@ -14,7 +15,15 @@ import { SYSTEM_PROMPT, buildTailoringPrompt, VERSION } from '../../prompts/tail
 import { TailoringSchema } from '../../llm/schemas/tailoring.schema.js'
 import { pdfQueue } from '../../jobs/pdf/pdf.queue.js'
 import { getSignedUrl } from '../../lib/storage.js'
+import { extractPdfText } from '../../lib/pdfExtract.js'
+import { resumeUploadQueue } from '../../jobs/resumeUpload/resumeUpload.queue.js'
 import * as resumeService from './resumeBlocks.service.js'
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => cb(null, file.mimetype === 'application/pdf'),
+})
 
 export const resumeRouter = Router()
 resumeRouter.use(requireAuth)
@@ -43,7 +52,7 @@ const ResumeVersionBodySchema = z.object({
 })
 
 resumeRouter.get('/resume/blocks', asyncHandler(async (req, res) => {
-  ok(res, await resumeService.getBlocks(req.user.id))
+  ok(res, await resumeService.getBlocks(req.user.id, req.query.archived === 'true'))
 }))
 
 resumeRouter.post('/resume/blocks', requireCsrf, validateBody(CreateBlockSchema), asyncHandler(async (req, res) => {
@@ -63,6 +72,41 @@ resumeRouter.patch('/resume/blocks/:id', requireCsrf, validateBody(UpdateBlockSc
 resumeRouter.delete('/resume/blocks/:id', requireCsrf, asyncHandler(async (req, res) => {
   await resumeService.archiveBlock(req.user.id, req.params.id)
   noContent(res)
+}))
+
+resumeRouter.post('/resume/blocks/:id/restore', requireCsrf, asyncHandler(async (req, res) => {
+  ok(res, await resumeService.restoreBlock(req.user.id, req.params.id))
+}))
+
+resumeRouter.post('/resume/upload', requireCsrf, upload.single('file'), asyncHandler(async (req, res) => {
+  if (!req.file) throw AppError.badRequest('No PDF file uploaded')
+
+  const rawText = (await extractPdfText(req.file.buffer)).trim()
+  if (!rawText) throw AppError.badRequest('Could not extract any text from that PDF')
+
+  const record = await prisma.resumeUpload.create({
+    data: {
+      userId: req.user.id,
+      fileName: req.file.originalname,
+      rawText,
+      status: 'QUEUED',
+    },
+  })
+  await resumeUploadQueue.add('parse', { resumeUploadId: record.id })
+
+  created(res, { id: record.id, status: record.status })
+}))
+
+resumeRouter.get('/resume/uploads/:id', asyncHandler(async (req, res) => {
+  const record = await prisma.resumeUpload.findUnique({ where: { id: req.params.id } })
+  if (!record) throw AppError.notFound('Upload not found')
+  if (record.userId !== req.user.id) throw AppError.forbidden('Forbidden')
+  ok(res, {
+    id: record.id,
+    status: record.status,
+    error: record.error,
+    blocksCreated: record.blocksCreated,
+  })
 }))
 
 // POST /applications/:id/tailor

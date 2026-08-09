@@ -3,9 +3,11 @@ import { redis } from './lib/redis.js'
 import { prisma } from './lib/db.js'
 import './jobs/ingestion/ingestion.worker.js'
 import './jobs/discovery/discovery.worker.js'
+import './jobs/scoring/scoring.worker.js'
 import './jobs/pdf/pdf.worker.js'
 import './jobs/embedding/embedding.worker.js'
 import './jobs/reminders/reminders.worker.js'
+import './jobs/resumeUpload/resumeUpload.worker.js'
 
 console.log('Pursuit worker started')
 

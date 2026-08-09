@@ -4,7 +4,8 @@ import { requireCsrf } from '../../middleware/csrf.js'
 import { asyncHandler } from '../../lib/asyncHandler.js'
 import { ok } from '../../lib/response.js'
 import { discoveryQueue } from '../../jobs/discovery/discovery.queue.js'
-import { isStale, getLastScanAt, listJobs, scoreJobsForUser } from './jobs.service.js'
+import { scoringQueue } from '../../jobs/scoring/scoring.queue.js'
+import { isStale, getLastScanAt, listJobs } from './jobs.service.js'
 
 export const jobsRouter = Router()
 jobsRouter.use(requireAuth)
@@ -51,7 +52,42 @@ jobsRouter.get('/jobs/scan-status', asyncHandler(async (req, res) => {
   ok(res, { status, progress, lastScanAt })
 }))
 
+async function enqueueScoring(req, res, rescore) {
+  const waiting = await scoringQueue.getWaiting()
+  const active = await scoringQueue.getActive()
+  const alreadyQueued = [...waiting, ...active].some((j) => j.data.userId === req.user.id)
+  if (alreadyQueued) {
+    return ok(res, { status: 'already_running' })
+  }
+
+  await scoringQueue.add('score', { userId: req.user.id, rescore }, { removeOnComplete: 10, removeOnFail: 5 })
+  ok(res, { status: 'queued' })
+}
+
 jobsRouter.post('/jobs/score', requireCsrf, asyncHandler(async (req, res) => {
-  const result = await scoreJobsForUser(req.user.id)
-  ok(res, result)
+  await enqueueScoring(req, res, false)
+}))
+
+jobsRouter.post('/jobs/rescore', requireCsrf, asyncHandler(async (req, res) => {
+  await enqueueScoring(req, res, true)
+}))
+
+jobsRouter.get('/jobs/score-status', asyncHandler(async (req, res) => {
+  const waiting = await scoringQueue.getWaiting()
+  const active = await scoringQueue.getActive()
+
+  const activeJob = active.find((j) => j.data.userId === req.user.id)
+  const queuedJob = waiting.find((j) => j.data.userId === req.user.id)
+
+  let status = 'idle'
+  let progress = 0
+
+  if (activeJob) {
+    status = 'running'
+    progress = activeJob.progress ?? 0
+  } else if (queuedJob) {
+    status = 'queued'
+  }
+
+  ok(res, { status, progress })
 }))
