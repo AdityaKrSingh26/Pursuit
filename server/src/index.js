@@ -1,3 +1,5 @@
+import path from 'path'
+import { fileURLToPath } from 'url'
 import express from 'express'
 import cookieParser from 'cookie-parser'
 import { authRouter } from './modules/auth/auth.router.js'
@@ -28,6 +30,16 @@ app.use('/api/v1', dashboardRouter)
 app.use('/api/v1', intelRouter)
 app.use('/api/v1', remindersRouter)
 app.use('/api/v1', jobsRouter)
+
+if (process.env.NODE_ENV === 'production') {
+  const __dirname = path.dirname(fileURLToPath(import.meta.url))
+  const clientDist = path.join(__dirname, '../../client/dist')
+  app.use(express.static(clientDist))
+  // SPA fallback for client-side routes (e.g. /dashboard, /resume) — anything not under /api or /health.
+  app.get(/^\/(?!api|health).*/, (_req, res) => {
+    res.sendFile(path.join(clientDist, 'index.html'))
+  })
+}
 
 // Global error handler (4-param signature tells Express this is an error handler)
 app.use((err, _req, res, _next) => {
