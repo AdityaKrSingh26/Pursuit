@@ -1,6 +1,6 @@
 # Pursuit
 
-A full-stack job-hunt command center for software engineers. Tracks applications through the full pipeline, runs AI gap analysis and resume tailoring against each job description, discovers new openings from 130+ companies nightly, and surfaces intelligence across your entire application history.
+Full-stack job-hunt command center. Tracks applications, runs AI gap analysis + resume tailoring per JD, discovers openings from 130+ companies nightly, surfaces intelligence across your history.
 
 ---
 
@@ -73,49 +73,49 @@ graph TB
 ## How It Works
 
 ### Application Pipeline
-Add a job by URL or paste raw JD text. The ingestion worker fetches the page, parses it into structured fields (title, company, skills, YOE, salary) via LLM, and generates a 1536-dim embedding for similarity search. Applications move through a kanban pipeline (SAVED → APPLIED → OA → TECH → HR → OFFER) with every stage transition logged to `StageEvent`.
+Add a job by URL or pasted JD text. Worker fetches + parses it into structured fields via LLM, generates a 1536-dim embedding. Kanban stages: SAVED → APPLIED → OA → TECH → HR → OFFER, every transition logged.
 
 ### AI Analysis
 Three on-demand analyses per application, streamed over SSE:
 
 | Analysis | What it does |
 |----------|-------------|
-| **Gap** | Scores resume against JD. Returns matched, missing, and partial skills + a 0–100 fit score |
-| **Prep** | Generates technical, behavioral, and gap-probe interview questions tailored to the specific role |
-| **Tailor** | Rewrites resume bullets to mirror JD language while keeping all facts truthful |
+| **Gap** | Resume vs JD — matched/missing/partial skills + 0–100 fit score |
+| **Prep** | Technical, behavioral, gap-probe interview questions |
+| **Tailor** | Rewrites resume bullets to mirror JD language, facts stay truthful |
 
 ### Job Discovery
-A background scan pulls from 8 structured sources in parallel — YC, Greenhouse, Lever, Ashby, Remotive, Adzuna, Wellfound, Arbeitnow — then falls back to a TinyFish careers-page scrape (returns clean markdown) for the 130+ tracked companies with no known ATS API. Jobs are stored globally and shared across all users — one fetch serves everyone. Each user independently clicks "Score for Relevance" to run LLM scoring (0–100 + reason) against their own resume blocks, with results cached per-user in `UserJobScore`.
+8 structured sources in parallel (YC, Greenhouse, Lever, Ashby, Remotive, Adzuna, Wellfound, Arbeitnow) + TinyFish careers-page scrape fallback for companies with no ATS API. Jobs stored globally, one fetch serves all users. Each user scores relevance (0–100) against their own resume.
 
 ### Resume Upload
-Drag-and-drop (or click-to-browse) a PDF resume on `/resume`. The API extracts raw text server-side, queues a background job, and the worker sends the text to the LLM to structure it into typed resume blocks (EXPERIENCE / PROJECTS / SKILLS / EDUCATION), appended to the user's existing blocks. The page polls upload status and refreshes automatically once parsing completes.
+Drag-and-drop a PDF on `/resume`. Server extracts text, worker sends it to the LLM to structure into typed blocks (EXPERIENCE/PROJECTS/SKILLS/EDUCATION), appended to existing blocks. Page polls and auto-refreshes on completion.
 
 ### Intelligence
-Once you have 5+ applications with parsed JDs, the Intel page shows:
-- **Skill demand** — which skills appear most across your JDs
+At 5+ parsed applications, the Intel page shows:
+- **Skill demand** — most-requested skills across your JDs
 - **Gap frequency** — skills most often missing from your resume
-- **Job clusters** — k-means-style grouping of JDs by embedding similarity
-- **Similar jobs** — HNSW approximate nearest-neighbor search per JD
+- **Job clusters** — k-means-style grouping by embedding similarity
+- **Similar jobs** — HNSW nearest-neighbor search per JD
 
 ### Dashboard
-Funnel conversion rates, weekly application velocity, and LLM cost tracking. Stage counts read from a materialized view (`mv_user_funnel`) refreshed every 15 minutes. Dashboard responses are Redis-cached with 15-minute TTL, write-invalidated on any application create/update.
+Funnel conversion, weekly velocity, LLM cost tracking. Stage counts from a materialized view refreshed every 15 min. Responses Redis-cached (15 min TTL), invalidated on write.
 
 ---
 
 ## Data Architecture
 
 ### Multi-Tenancy
-Shared-schema multi-tenancy with PostgreSQL Row Level Security as a defense-in-depth layer. Every user-scoped table has a `tenant_isolation` policy:
+Shared schema + PostgreSQL Row Level Security as defense-in-depth. Every user-scoped table has a policy:
 
 ```sql
 CREATE POLICY tenant_isolation ON "Application"
   USING ("userId" = current_setting('app.current_user_id', true));
 ```
 
-The `requireAuth` middleware sets this config var per request after JWT verification. Even if application code forgets a `WHERE userId` clause, the database refuses to return another tenant's rows.
+`requireAuth` sets this config var per request after JWT verification — a missing `WHERE userId` in app code still can't leak another tenant's rows.
 
 ### Content-Addressed Job Descriptions
-`JobDescription` has no `userId`. The `jdHash` (SHA-256 of normalized raw text) is the global unique key. Two users applying to the same job share one row, one LLM parse call, and one embedding computation. Cost scales with unique job postings, not `users × jobs`.
+`JobDescription` has no `userId`. `jdHash` (SHA-256 of normalized text) is the global key — two users applying to the same job share one row, one parse, one embedding. Cost scales with unique postings, not `users × jobs`.
 
 ### Index Strategy
 
@@ -129,7 +129,7 @@ The `requireAuth` middleware sets this config var per request after JWT verifica
 | `Reminder(applicationId) WHERE dismissedAt IS NULL` | Partial | Only indexes actionable reminders; dismissed rows never queried again |
 
 ### Soft Deletes
-Applications use `deletedAt` (null = active). Enables undo, GDPR export-then-delete flow, and an audit trail. All queries filter `WHERE deletedAt IS NULL`.
+`deletedAt` (null = active) on Application. Enables undo + audit trail; all queries filter `WHERE deletedAt IS NULL`.
 
 ---
 
