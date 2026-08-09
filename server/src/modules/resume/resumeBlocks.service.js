@@ -1,9 +1,9 @@
 import { prisma } from '../../lib/db.js'
 import { AppError } from '../../lib/errors.js'
 
-export async function getBlocks(userId) {
+export async function getBlocks(userId, archived = false) {
   return prisma.resumeBlock.findMany({
-    where: { userId, archivedAt: null },
+    where: { userId, archivedAt: archived ? { not: null } : null },
     orderBy: [{ section: 'asc' }, { orderDefault: 'asc' }],
   })
 }
@@ -31,6 +31,16 @@ export async function archiveBlock(userId, blockId) {
   return prisma.resumeBlock.update({
     where: { id: blockId },
     data: { archivedAt: new Date() },
+  })
+}
+
+export async function restoreBlock(userId, blockId) {
+  const block = await prisma.resumeBlock.findUnique({ where: { id: blockId } })
+  if (!block) throw AppError.notFound('Block not found')
+  if (block.userId !== userId) throw AppError.forbidden('Forbidden')
+  return prisma.resumeBlock.update({
+    where: { id: blockId },
+    data: { archivedAt: null },
   })
 }
 
