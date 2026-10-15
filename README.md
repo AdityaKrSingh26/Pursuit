@@ -83,7 +83,7 @@ Three on-demand analyses per application, streamed over SSE:
 | **Tailor** | Rewrites resume bullets to mirror JD language, facts stay truthful |
 
 ### Job Discovery
-On demand, not a nightly cron. Any signed-in user can hit Refresh; if the global table is older than 12 hours the worker scans once for everyone (`POST /jobs/refresh`). Seven structured sources run in parallel (YC, Greenhouse, Lever, Ashby, Remotive, Adzuna, Arbeitnow) plus an optional TinyFish careers-page fallback for companies with no ATS id. Wellfound is disabled (HTML/`__NEXT_DATA__` scrape, no official API, ToS risk). `GET /jobs` is cursor-paginated (50 per page). Each user scores relevance (0–100) against their own resume.
+On demand, not a nightly cron. Any signed-in user can hit Refresh; if the global table is older than 12 hours the worker scans once for everyone (`POST /jobs/refresh`). Seven structured sources run in parallel (YC, Greenhouse, Lever, Ashby, Remotive, Adzuna, Arbeitnow) plus an optional TinyFish careers-page fallback for companies with no ATS id. TinyFish titles come from a markdown heading or the page `<title>`/`<h1>`; leftover HTML and non-role titles are not stored, and `GET /jobs` hides any old markup titles until a rescan. Wellfound is disabled (HTML/`__NEXT_DATA__` scrape, no official API, ToS risk). `GET /jobs` is cursor-paginated (50 per page). Each user scores relevance (0–100) against their own resume.
 
 ### Resume Upload
 Drag-and-drop a PDF on `/resume`. Server extracts text, worker sends it to the LLM to structure into typed blocks (EXPERIENCE/PROJECTS/SKILLS/EDUCATION), appended to existing blocks. Page polls and auto-refreshes on completion.
@@ -208,11 +208,12 @@ docker compose up -d
 ### 4. Run migrations
 
 ```bash
+npx prisma migrate deploy
 npx prisma migrate dev
 npx prisma generate
 ```
 
-Prisma 7 reads `prisma.config.ts` at the repo root. Do not run Prisma with `--prefix server`.
+Prisma 7 reads `prisma.config.ts` at the repo root. Do not run Prisma with `--prefix server`. Use `migrate deploy` against a hosted database (Neon). `migrate dev` is for a local Postgres you are iterating on.
 
 ### 5. Start all three processes
 
@@ -290,7 +291,7 @@ Pursuit/
 | `LLM_API_KEY` | Yes | API key for your LLM provider |
 | `LLM_API_KEYS` | No | Comma-separated list of keys to rotate through on HTTP 429 for both OpenAI-compatible and Anthropic (falls back to `LLM_API_KEY`) |
 | `LLM_BASE_URL` | No | Custom base URL (e.g. Groq: `https://api.groq.com/openai/v1`) |
-| `LLM_MODEL` | No | Model name (default: `claude-sonnet-4-6`) |
+| `LLM_MODEL` | No | Model name. Groq example: `openai/gpt-oss-120b` (replaces retired `llama-3.3-70b-versatile`). Zod default if unset: `claude-sonnet-4-6` |
 | `LLM_MAX_TOKENS` | No | Max tokens per LLM call (default: 2000) |
 | `EMBEDDING_API_KEY` | Yes* | API key for embeddings (*required when using custom LLM base URL) |
 | `EMBEDDING_BASE_URL` | No | Embedding endpoint (default: OpenAI) |

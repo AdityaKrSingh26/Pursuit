@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
 import { env } from './env.js'
 import { rotateAcrossKeys } from './keyRotation.js'
+import { resolveLlmModel } from './resolveLlmModel.js'
 
 const _anthropicClients = new Map()
 const _openaiClients = new Map()
@@ -51,6 +52,7 @@ async function withKeyRotation(makeClient, fn) {
 // chat({ system?, messages, model, maxTokens })
 // Returns { text, usage: { input_tokens, output_tokens } }
 export async function chat({ system, messages, model, maxTokens }) {
+  model = resolveLlmModel({ baseUrl: env.LLM_BASE_URL, model })
   if (env.LLM_PROVIDER === 'openai') {
     const openaiMessages = system ? [{ role: 'system', content: system }, ...messages] : messages
     const res = await withKeyRotation(openaiClientFor, (client) => client.chat.completions.create({
@@ -79,6 +81,7 @@ export async function chat({ system, messages, model, maxTokens }) {
 // chatStream({ system?, messages, model, maxTokens }, onToken)
 // Returns { text, usage: { input_tokens, output_tokens } }
 export async function chatStream({ system, messages, model, maxTokens }, onToken) {
+  model = resolveLlmModel({ baseUrl: env.LLM_BASE_URL, model })
   if (env.LLM_PROVIDER === 'openai') {
     const openaiMessages = system ? [{ role: 'system', content: system }, ...messages] : messages
     const stream = await withKeyRotation(openaiClientFor, (client) => client.chat.completions.create({

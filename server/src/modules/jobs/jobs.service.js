@@ -12,6 +12,11 @@ import {
   COMPANY_KEYED_SOURCES,
   GLOBAL_SOURCES,
 } from '../../jobs/discovery/sources/enabled.js'
+import {
+  extractTitle,
+  isHtmlTitle,
+  isUsableDiscoveryTitle,
+} from '../../jobs/discovery/sources/tinyfishParse.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const COMPANIES_PATH = join(__dirname, '../../data/companies.json')
@@ -43,7 +48,10 @@ export async function getLastScanAt() {
 
 export async function listJobs(userId, filters = {}) {
   const limit = filters.limit ?? 50
+  // TinyFish used to persist leftover HTML as the title; hide those rows until a rescan rewrites them.
+  const where = { title: { not: { startsWith: '<' } } }
   const query = {
+    where,
     orderBy: [{ fetchedAt: 'desc' }, { id: 'desc' }],
     take: limit,
     include: {
@@ -60,7 +68,7 @@ export async function listJobs(userId, filters = {}) {
 
   const [rows, total] = await Promise.all([
     prisma.discoveredJob.findMany(query),
-    prisma.discoveredJob.count(),
+    prisma.discoveredJob.count({ where }),
   ])
 
   const jobs = rows.map((j) => ({
@@ -95,12 +103,6 @@ function extractJobLinks(markdown, careersUrl) {
   return [...new Set(matches)].filter((u) => u !== careersUrl).slice(0, 20)
 }
 
-function extractTitle(markdown, company) {
-  // Try to find a heading or first meaningful line as title
-  const lines = (markdown ?? '').split('\n').map((l) => l.replace(/^#+\s*/, '').trim()).filter(Boolean)
-  return lines[0]?.slice(0, 120) ?? `${company} Role`
-}
-
 function extractLocation(markdown) {
   const m = markdown?.match(/\b(Remote|Hybrid|On-?site|[A-Z][a-z]+(?:,\s*[A-Z]{2,})?)\b/)
   return m?.[0] ?? null
@@ -114,6 +116,7 @@ function normalizeUrl(url) {
 
 async function upsertDiscoveredJob(raw) {
   if (!raw.url) return
+  if (isHtmlTitle(raw.title)) return
   const url = normalizeUrl(raw.url)
   const location = raw.location || null
 
@@ -164,11 +167,14 @@ async function scanTinyfishCompany(company, rawJobs) {
     const jobMarkdown = await tinyfishFetch(url)
     if (!jobMarkdown) continue
 
+    const title = extractTitle(jobMarkdown, company.name)
+    if (!isUsableDiscoveryTitle(title)) continue
+
     const location = extractLocation(jobMarkdown) ?? ''
     rawJobs.push({
       source: 'tinyfish',
       company: company.name,
-      title: extractTitle(jobMarkdown, company.name),
+      title,
       url,
       location,
       remote: guessRemote(location),

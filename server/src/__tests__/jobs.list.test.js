@@ -49,6 +49,24 @@ describe('listJobs pagination', () => {
     expect(result.total).toBe(200)
   })
 
+  it('does not list rows whose title is leftover HTML', async () => {
+    prisma.discoveredJob.findMany.mockResolvedValue([])
+    prisma.discoveredJob.count.mockResolvedValue(0)
+
+    await listJobs('user-1', { limit: 50 })
+
+    expect(prisma.discoveredJob.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { title: { not: { startsWith: '<' } } },
+      }),
+    )
+    expect(prisma.discoveredJob.count).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { title: { not: { startsWith: '<' } } },
+      }),
+    )
+  })
+
   it('seeks past the cursor on the next page', async () => {
     prisma.discoveredJob.findMany.mockResolvedValue([row('j50')])
     prisma.discoveredJob.count.mockResolvedValue(200)

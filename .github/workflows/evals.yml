@@ -40,7 +40,7 @@ jobs:
       JWT_SECRET: ci_jwt_secret_16ch
       LLM_PROVIDER: openai
       LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-      LLM_MODEL: llama-3.3-70b-versatile
+      LLM_MODEL: openai/gpt-oss-120b
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

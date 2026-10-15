@@ -54,6 +54,7 @@ describe('onboarding files', () => {
 
   it('tells people to run prisma from the repo root', () => {
     const readme = read('README.md')
+    expect(readme).toContain('npx prisma migrate deploy')
     expect(readme).toContain('npx prisma migrate dev')
     expect(readme).toContain('npx prisma generate')
     expect(readme).not.toContain('npx --prefix server prisma')
@@ -83,5 +84,11 @@ describe('onboarding files', () => {
     const pkg = JSON.parse(read('server/package.json'))
     expect(JSON.stringify(pkg.dependencies ?? {})).not.toMatch(/@aws-sdk/)
     expect(JSON.stringify(pkg.devDependencies ?? {})).not.toMatch(/@aws-sdk/)
+  })
+
+  it('does not pin Groq’s retired llama-3.3-70b-versatile', () => {
+    expect(read('.env.example')).not.toContain('llama-3.3-70b-versatile')
+    expect(read('.github/workflows/ci.yml')).not.toContain('llama-3.3-70b-versatile')
+    expect(read('.github/workflows/evals.yml')).not.toContain('llama-3.3-70b-versatile')
   })
 })

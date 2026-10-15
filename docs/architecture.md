@@ -135,7 +135,7 @@ flowchart TD
     G1 --> G[for companies with no ATS id:\nTinyFish careers-page scrape fallback]
     G --> H[TinyFish fetch\ncareers page → markdown]
     H --> I[regex extract\njob links]
-    I --> J[TinyFish fetch\nper job page]
+    I --> J[TinyFish fetch per job page\nparse title from markdown or HTML\nskip markup / non-role titles]
     G1 --> K[UPSERT DiscoveredJob\nby url — global dedup]
     J --> K
     K --> L{more companies?}
