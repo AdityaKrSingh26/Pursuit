@@ -29,15 +29,27 @@ export default function FunnelChart({ stageCounts, conversionRates }: FunnelChar
     rate: conversionRates[s],
   }))
 
-  const renderCustomLabel = (props: any) => {
-    const { x, y, width, index } = props
+  const renderCustomLabel = ({
+    x = 0,
+    y = 0,
+    width = 0,
+    index = 0,
+  }: {
+    x?: string | number
+    y?: string | number
+    width?: string | number
+    index?: number
+  }) => {
     const entry = data[index]
     if (!entry || entry.rate === null || entry.rate === undefined) return null
+    const left = Number(x) || 0
+    const top = Number(y) || 0
+    const barWidth = Number(width) || 0
 
     return (
       <text
-        x={x + width / 2}
-        y={y - 8}
+        x={left + barWidth / 2}
+        y={top - 8}
         fill="#5C5446"
         textAnchor="middle"
         className="font-mono text-[9px] font-semibold"

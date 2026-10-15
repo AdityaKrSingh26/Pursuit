@@ -1,6 +1,6 @@
 # Database Schema
 
-Pursuit uses PostgreSQL 16 with the pgvector extension. The schema is designed for shared-schema multi-tenancy with Row Level Security enforced at the database layer.
+Pursuit uses PostgreSQL 16 with the pgvector extension. Shared-schema multi-tenancy: tenant tables filter on `userId` in application queries. Postgres RLS is not used.
 
 ---
 
@@ -30,6 +30,9 @@ erDiagram
         string company
         string roleTitle
         string source
+        string salaryText
+        string location
+        datetime deadline
         Stage stage
         datetime nextActionAt
         text notes
@@ -58,6 +61,17 @@ erDiagram
         vector embedding
         datetime createdAt
         datetime updatedAt
+    }
+
+    ResumeUpload {
+        uuid id PK
+        uuid userId FK
+        string fileName
+        text rawText
+        ParseStatus status
+        string error
+        int blocksCreated
+        datetime createdAt
     }
 
     ResumeBlock {
@@ -89,6 +103,7 @@ erDiagram
         AnalysisKind kind
         uuid resumeVersionId
         string jdHash
+        string resumeHash
         json result
         int tokensIn
         int tokensOut
@@ -111,6 +126,8 @@ erDiagram
         string title
         string url UK
         string location
+        boolean remote
+        string source
         text rawText
         string[] techStack
         datetime fetchedAt
@@ -129,6 +146,7 @@ erDiagram
 
     User ||--o{ RefreshToken : "has"
     User ||--o{ Application : "owns"
+    User ||--o{ ResumeUpload : "owns"
     User ||--o{ ResumeBlock : "owns"
     User ||--o{ UserJobScore : "scores"
     Application ||--o{ StageEvent : "has"
@@ -152,6 +170,7 @@ Stores hashed refresh tokens for the rotating-token auth flow. `revokedAt` enabl
 ### `Application`
 Central model. Tracks one job application from SAVED through OFFER/REJECTED/GHOSTED.
 
+- `salaryText`, `location`, `deadline` — optional fields the user can set on the card.
 - `search_vector` — STORED generated column: `to_tsvector('english', company || roleTitle || notes)`. Maintained by PostgreSQL on every write. GIN index makes FTS O(log n).
 - `deletedAt` — soft delete. All queries filter `WHERE deletedAt IS NULL`. Enables undo and GDPR export-then-delete.
 - `stage` — denormalized current stage for O(1) reads. Full history lives in `StageEvent`.
@@ -165,6 +184,9 @@ Append-only audit log of every stage transition. Never updated, never deleted. T
 - `structured` — parsed JSON: title, company, skills, YOE range, salary, responsibilities.
 - `embedding` — 1536-dim vector (text-embedding-3-small). HNSW index for O(log n) approximate nearest-neighbor search.
 - `parseStatus` — FSM: `QUEUED → FETCHING → PARSING → DONE | FAILED`. Partial index on `(parseStatus) WHERE parseStatus IN ('QUEUED', 'FETCHING')` is near-zero size in steady state.
+
+### `ResumeUpload`
+A source PDF the user uploaded for resume parsing. `rawText` is the extracted text; `status` follows the same `ParseStatus` FSM as JD ingest. `blocksCreated` records how many `ResumeBlock` rows the worker wrote.
 
 ### `ResumeBlock`
 A single block of resume content (Experience, Projects, Skills, Education). Content stored as JSON string in the `content` field — structured on the client, serialized for storage. `skillTags` is a flat `text[]` for fast skill matching without JSON parsing.
@@ -183,7 +205,7 @@ Stores LLM analysis results. `kind` discriminates the three types:
 | `PREP` | `technicalQuestions`, `behavioralQuestions`, `gapProbes`, `companyAngle` |
 | `TAILOR` | `proposals[]` — per-block `include/exclude/rewrite` with `rewrittenContent` |
 
-`costUsd` tracks per-analysis spend for the LLM cost dashboard.
+`resumeHash` is part of the cache key with `applicationId`, `kind`, and `jdHash`, so a resume edit misses the cache. `costUsd` tracks per-analysis spend for the LLM cost dashboard.
 
 ### `Reminder`
 A follow-up nudge generated when an application has been silent for N days. `windowKey` prevents duplicate reminders for the same silence window per application (`@@unique([applicationId, windowKey])`). Partial index on `applicationId WHERE dismissedAt IS NULL` keeps the active-reminders query fast; dismissed rows are never queried again.
@@ -191,6 +213,8 @@ A follow-up nudge generated when an application has been silent for N days. `win
 ### `DiscoveredJob`
 **Global shared content. No `userId`.** Listings from 271 companies via ATS/board APIs (YC, Greenhouse, Lever, Ashby, Remotive, Adzuna, Arbeitnow) plus an optional TinyFish careers-page fallback. One on-demand scan (12h cache) serves all users. Wellfound HTML scrape is disabled.
 
+- `remote` — guessed from the location string at scrape time.
+- `source` — which adapter wrote the row (`greenhouse`, `lever`, `ashby`, `yc`, `remotive`, `adzuna`, `arbeitnow`, or `tinyfish`).
 - `techStack` — extracted during per-user LLM scoring and stored here (it's a property of the job, not the user).
 - `url` — globally unique. Upsert-on-conflict deduplicates across scan runs.
 

@@ -39,8 +39,8 @@ export default function SkillDemandChart({ data }: SkillDemandChartProps) {
               width={100}
             />
             <Tooltip
-              formatter={(val: any, _name: any, props: any) => {
-                const pct = props.payload.pct
+              formatter={(val, _name, item) => {
+                const pct = (item as { payload?: { pct?: number } }).payload?.pct
                 return [`${val} (${pct}% of jobs)`, 'Frequency']
               }}
               contentStyle={{

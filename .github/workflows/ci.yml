@@ -9,33 +9,6 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Install dependencies
-        run: |
-          npm install
-          npm --prefix server install
-          npm --prefix client install
-      - name: Run linter
-        run: npm run lint
-      - name: Run typecheck
-        run: npm run typecheck
-      - name: Run tests
-        run: npm run test
-
-  evals:
-    runs-on: ubuntu-latest
-    needs: [ci]
-    if: |
-      contains(toJSON(github.event.commits.*.modified), 'server/src/prompts') ||
-      contains(toJSON(github.event.commits.*.modified), 'server/src/llm')
-    env:
-      DATABASE_URL: postgresql://pursuit:pursuit@localhost:5432/pursuit
-      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-      LLM_MODEL: claude-3-5-sonnet-latest
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -51,7 +24,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
       redis:
-        image: redis:alpine
+        image: redis:7-alpine
         ports:
           - 6379:6379
         options: >-
@@ -59,6 +32,13 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+    env:
+      DATABASE_URL: postgresql://pursuit:pursuit@localhost:5432/pursuit
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci_jwt_secret_16ch
+      LLM_PROVIDER: openai
+      LLM_API_KEY: ci-dummy-llm-key
+      LLM_MODEL: llama-3.3-70b-versatile
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -68,8 +48,14 @@ jobs:
         run: |
           npm install
           npm --prefix server install
-      - name: Run migrations
+          npm --prefix client install
+      - name: Generate Prisma client and migrate
         run: |
-          npx --prefix server prisma db push
-      - name: Run evals
-        run: npm run evals
+          npx prisma generate
+          npx prisma migrate deploy
+      - name: Run linter
+        run: npm run lint
+      - name: Run typecheck
+        run: npm run typecheck
+      - name: Run tests
+        run: npm run test

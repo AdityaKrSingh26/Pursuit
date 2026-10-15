@@ -18,7 +18,7 @@ function getCloudinary() {
   return cloudinary
 }
 
-export async function uploadBuffer(key, buffer, contentType) {
+export async function uploadBuffer(key, buffer, _contentType) {
   const client = getCloudinary()
   if (!client) {
     throw new Error('Cloudinary not configured')

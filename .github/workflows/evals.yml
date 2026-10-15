@@ -1,0 +1,63 @@
+name: Evals
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'server/src/prompts/**'
+      - 'server/src/llm/**'
+      - 'evals/**'
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: pursuit
+          POSTGRES_PASSWORD: pursuit
+          POSTGRES_DB: pursuit
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://pursuit:pursuit@localhost:5432/pursuit
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci_jwt_secret_16ch
+      LLM_PROVIDER: openai
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      LLM_MODEL: llama-3.3-70b-versatile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: |
+          npm install
+          npm --prefix server install
+      - name: Generate Prisma client and migrate
+        run: |
+          npx prisma generate
+          npx prisma migrate deploy
+      - name: Run evals
+        run: |
+          if [ -z "$LLM_API_KEY" ]; then
+            echo "LLM_API_KEY secret is not set; skipping evals"
+            exit 0
+          fi
+          npm run evals

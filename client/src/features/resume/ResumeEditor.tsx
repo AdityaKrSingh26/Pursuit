@@ -599,7 +599,7 @@ function ResumeUploadZone() {
     setUploadId(null)
     upload.mutate(file, {
       onSuccess: (res) => setUploadId(res.id),
-      onError: (e: any) => setFileError(e?.message ?? 'Upload failed'),
+      onError: (e: Error) => setFileError(e.message || 'Upload failed'),
     })
   }
 
@@ -795,7 +795,9 @@ export default function ResumeEditor() {
               try {
                 const c = JSON.parse(block.content)
                 preview = c.company || c.name || c.school || c.category || block.content
-              } catch {}
+              } catch {
+                // keep the raw string when the block is not JSON
+              }
               return (
                 <div
                   key={block.id}

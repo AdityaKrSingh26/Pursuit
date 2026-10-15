@@ -22,6 +22,8 @@ export default [
         setInterval: 'readonly',
         clearInterval: 'readonly',
         URL: 'readonly',
+        fetch: 'readonly',
+        AbortSignal: 'readonly',
         React: 'readonly', // react-pdf JSX elements
       },
     },

@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "lint": "npm --prefix server run lint",
+    "lint": "npm --prefix server run lint && npm --prefix client run lint",
     "typecheck": "npm --prefix client run typecheck",
     "test": "npm --prefix server run test",
     "evals": "npx -y tsx evals/run.ts"

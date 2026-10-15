@@ -29,7 +29,7 @@ export default function CostWidget({ byWeek, totalThisMonth }: CostWidgetProps) 
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
             <Tooltip
-              formatter={(val: any) => [`$${Number(val).toFixed(4)}`, 'Cost']}
+              formatter={(val) => [`$${Number(val).toFixed(4)}`, 'Cost']}
               contentStyle={{
                 border: '1.5px solid #1A1712',
                 borderRadius: 0,

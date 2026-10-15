@@ -133,7 +133,7 @@ Shared schema. Tenant isolation is in application queries: every user-scoped rea
 | Routing | React Router v7 |
 | Drag & drop | dnd-kit |
 | Charts | Recharts |
-| API | Express 5, Node.js, Zod |
+| API | Express 5, JavaScript, Node.js, Zod |
 | ORM | Prisma 7 |
 | Database | PostgreSQL 16 + pgvector |
 | Queue | BullMQ 5 + Redis 7 |
@@ -174,6 +174,7 @@ Shared schema. Tenant isolation is in application queries: every user-scoped rea
 ```bash
 git clone https://github.com/AdityaKrSingh26/Pursuit.git
 cd Pursuit
+npm install
 npm --prefix server install
 npm --prefix client install
 ```
@@ -207,9 +208,11 @@ docker compose up -d
 ### 4. Run migrations
 
 ```bash
-npx --prefix server prisma migrate dev
-npx --prefix server prisma generate
+npx prisma migrate dev
+npx prisma generate
 ```
+
+Prisma 7 reads `prisma.config.ts` at the repo root. Do not run Prisma with `--prefix server`.
 
 ### 5. Start all three processes
 
@@ -300,3 +303,16 @@ Pursuit/
 | `CLOUDINARY_API_SECRET` | No | Cloudinary API secret |
 | `PORT` | No | API port (default: 3001) |
 | `REMINDER_DAYS_THRESHOLD` | No | Days of silence before a follow-up reminder (default: 7) |
+
+---
+
+## Scripts
+
+From the repo root:
+
+| Command | What it runs |
+|---------|----------------|
+| `npm run lint` | ESLint on the server **and** the client |
+| `npm run typecheck` | TypeScript check on the client. The API stays JavaScript. |
+| `npm run test` | Server Vitest suite |
+| `npm run evals` | LLM prompt evals (needs a live key and database) |
