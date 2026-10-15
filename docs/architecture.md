@@ -182,7 +182,7 @@ flowchart LR
     subgraph Read["Read path"]
         REQ["GET /dashboard/funnel"] --> RHIT{Redis hit?\ndashboard:funnel:userId}
         RHIT -- yes --> RET["return cached JSON\n~0ms"]
-        RHIT -- no --> DB2["query mv_user_funnel\n~2ms"]
+        RHIT -- no --> DB2["groupBy Application\ndeletedAt null"]
         DB2 --> STORE["redis.setex TTL=900s"]
         STORE --> RET2["return result"]
     end
@@ -190,6 +190,7 @@ flowchart LR
     subgraph Write["Write path (invalidation)"]
         CREATE["POST /applications"] --> INV["redis.del\ndashboard:funnel:userId\ndashboard:velocity:userId"]
         STAGE["PATCH stage change"] --> INV2["redis.del\ndashboard:funnel:userId"]
+        DELETE["DELETE /applications"] --> INV3["redis.del\ndashboard:funnel:userId\ndashboard:velocity:userId"]
     end
 
     subgraph Cron["Cron (every 15 min)"]
@@ -197,10 +198,12 @@ flowchart LR
     end
 ```
 
+Funnel percents are occupancy mix (current count in this stage ÷ current count in the previous stage), not path conversion from `StageEvent`. Counts come from live `Application` rows (`deletedAt` is null) so a delete is visible on the next GET after Redis invalidation.
+
 | Cache key | TTL | Invalidated on |
 |-----------|-----|----------------|
-| `dashboard:funnel:{userId}` | 15 min | application create / stage change |
-| `dashboard:velocity:{userId}` | 15 min | application create |
+| `dashboard:funnel:{userId}` | 15 min | application create / stage change / delete |
+| `dashboard:velocity:{userId}` | 15 min | application create / delete |
 | `intel:skill-demand:{userId}` | 1 hour | — (TTL only) |
 | `intel:clusters:{userId}` | 5 min | — (TTL only) |
 

@@ -5,6 +5,7 @@ import { api, ApiError } from '../../lib/api'
 import { streamAnalysis } from '../../lib/sse'
 import type { ResumeBlock, TailoringProposal, TailoringResult } from '../../lib/types'
 import { decidePdfPoll } from '../../lib/pdfPoll'
+import { buildApprovedBlocks } from '../../lib/approvedBlocks'
 
 interface Decision {
   blockId: string
@@ -97,9 +98,7 @@ export default function TailoringDiffView({
   const allDecided = proposals.length > 0 && decided === proposals.length
 
   async function generatePdf() {
-    const approvedBlocks = proposals
-      .filter((p) => decisions[p.blockId]?.include)
-      .map((p) => ({ blockId: p.blockId, content: decisions[p.blockId].content }))
+    const approvedBlocks = buildApprovedBlocks(proposals, decisions, blocks)
 
     setPdfStatus('creating')
     try {

@@ -263,4 +263,5 @@ export async function deleteApplication(userId, id) {
     where: { id },
     data: { deletedAt: new Date() },
   })
+  await invalidate(CacheKey.funnelStats(userId), CacheKey.velocityStats(userId))
 }

@@ -155,6 +155,7 @@ model Analysis {
   kind            AnalysisKind
   resumeVersionId String?
   jdHash          String
+  resumeHash      String       @default("")
   result          Json
   tokensIn        Int
   tokensOut       Int
@@ -162,7 +163,7 @@ model Analysis {
   createdAt       DateTime     @default(now())
   application     Application  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
 
-  @@index([applicationId, kind, jdHash])
+  @@index([applicationId, kind, jdHash, resumeHash])
 }
 
 enum AnalysisKind {

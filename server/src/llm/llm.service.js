@@ -21,12 +21,13 @@ export function computeCost(model, usage) {
   return 0
 }
 
-async function _checkCache({ applicationId, kind, jdHash, resumeVersionId, promptVersion }, schema) {
+async function _checkCache({ applicationId, kind, jdHash, resumeHash, resumeVersionId, promptVersion }, schema) {
   const cached = await prisma.analysis.findFirst({
     where: {
       applicationId,
       kind,
       jdHash,
+      resumeHash: resumeHash ?? '',
       resumeVersionId: resumeVersionId ?? null,
     },
   })
@@ -80,7 +81,7 @@ async function _validateWithRetry(responseText, schema, systemPrompt, userMessag
 }
 
 async function _writeAnalysis(params, validatedData, usage) {
-  const { applicationId, kind, jdHash, resumeVersionId, promptVersion } = params
+  const { applicationId, kind, jdHash, resumeHash, resumeVersionId, promptVersion } = params
   const costUsd = computeCost(env.LLM_MODEL, usage)
 
   await prisma.analysis.create({
@@ -88,6 +89,7 @@ async function _writeAnalysis(params, validatedData, usage) {
       applicationId,
       kind,
       jdHash,
+      resumeHash: resumeHash ?? '',
       resumeVersionId: resumeVersionId ?? null,
       result: { ...validatedData, promptVersion },
       tokensIn: usage.input_tokens,
@@ -97,10 +99,12 @@ async function _writeAnalysis(params, validatedData, usage) {
   })
 }
 
-export async function callLlm({ systemPrompt, userMessage, schema, ...params }) {
-  const cached = await _checkCache(params, schema)
-  if (cached !== null) {
-    return cached
+export async function callLlm({ systemPrompt, userMessage, schema, persist = true, ...params }) {
+  if (persist) {
+    const cached = await _checkCache(params, schema)
+    if (cached !== null) {
+      return cached
+    }
   }
 
   const response = await chat({
@@ -116,16 +120,20 @@ export async function callLlm({ systemPrompt, userMessage, schema, ...params }) 
     ? { input_tokens: base.input_tokens + retryUsage.input_tokens, output_tokens: base.output_tokens + retryUsage.output_tokens }
     : base
 
-  await _writeAnalysis(params, validatedData, usage)
+  if (persist) {
+    await _writeAnalysis(params, validatedData, usage)
+  }
 
   return validatedData
 }
 
-export async function streamLlm({ systemPrompt, userMessage, schema, ...params }, onToken, onDone) {
-  const cached = await _checkCache(params, schema)
-  if (cached !== null) {
-    onDone(cached)
-    return
+export async function streamLlm({ systemPrompt, userMessage, schema, persist = true, ...params }, onToken, onDone) {
+  if (persist) {
+    const cached = await _checkCache(params, schema)
+    if (cached !== null) {
+      onDone(cached)
+      return
+    }
   }
 
   const response = await chatStream(
@@ -144,7 +152,9 @@ export async function streamLlm({ systemPrompt, userMessage, schema, ...params }
     ? { input_tokens: base.input_tokens + retryUsage.input_tokens, output_tokens: base.output_tokens + retryUsage.output_tokens }
     : base
 
-  await _writeAnalysis(params, validatedData, usage)
+  if (persist) {
+    await _writeAnalysis(params, validatedData, usage)
+  }
 
   onDone(validatedData)
 }

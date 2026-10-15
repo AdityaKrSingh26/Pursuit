@@ -1,6 +1,7 @@
 import PageHeader from '../../components/PageHeader'
 import { EmptyState, Spinner } from '../../components/ui'
 import { useDashboardFunnel, useDashboardVelocity } from '../../lib/queries'
+import { FUNNEL_PAGE_SUBTITLE } from '../../lib/funnelCopy'
 import FunnelChart from './FunnelChart'
 import VelocityChart from './VelocityChart'
 import StatsRow from './StatsRow'
@@ -16,7 +17,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <PageHeader index="03" title="Funnel" subtitle="Conversion and velocity across the whole search." />
+      <PageHeader index="03" title="Funnel" subtitle={FUNNEL_PAGE_SUBTITLE} />
       <div className="flex-1 overflow-y-auto px-8 py-6">
         {isLoading ? (
           <Spinner />

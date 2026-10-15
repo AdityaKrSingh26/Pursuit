@@ -17,6 +17,7 @@ export async function remindersProcessor() {
            ) AS "lastEventAt"
     FROM "Application" a
     WHERE a.stage IN ('APPLIED', 'OA', 'TECH', 'HR')
+      AND a."deletedAt" IS NULL
       AND a."createdAt" <= ${cutoff}
       AND NOT EXISTS (
         SELECT 1 FROM "StageEvent" se
@@ -45,9 +46,10 @@ export async function remindersProcessor() {
         userMessage: buildReminderEmailPrompt(app.company, app.roleTitle, daysSince),
         schema: ReminderEmailSchema,
         applicationId: app.id,
-        kind: 'PREP', // reuse PREP kind for cost tracking
+        kind: 'PREP',
         jdHash: '',
         promptVersion: VERSION,
+        persist: false,
       })
       draftEmail = `Subject: ${result.subject}\n\n${result.body}`
     } catch (err) {

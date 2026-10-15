@@ -15,6 +15,7 @@ import { checkPrepRateLimit } from './prepRateLimit.js'
 import { SYSTEM_PROMPT as PREP_SYSTEM_PROMPT, buildPrepPrompt, VERSION as PREP_VERSION } from '../../prompts/prep-generator.js'
 import { PrepSchema } from '../../llm/schemas/prep.schema.js'
 import { loadAppWithJd } from './analysis.access.js'
+import { hashResumeBlocks } from '../../lib/resumeHash.js'
 
 export const analysisRouter = Router()
 analysisRouter.use(requireAuth)
@@ -43,6 +44,7 @@ analysisRouter.post('/applications/:id/analysis/gap', requireCsrf, rateLimitLlm,
       applicationId: app.id,
       kind: 'GAP',
       jdHash: app.jd.jdHash,
+      resumeHash: hashResumeBlocks(resumeBlocks),
       resumeVersionId: undefined,
       promptVersion: VERSION,
     }, (token) => {
@@ -99,6 +101,7 @@ analysisRouter.post('/applications/:id/analysis/prep', requireCsrf, rateLimitLlm
       applicationId: app.id,
       kind: 'PREP',
       jdHash: app.jd.jdHash,
+      resumeHash: hashResumeBlocks(resumeBlocks),
       resumeVersionId: undefined,
       promptVersion: PREP_VERSION,
     }, (token) => {

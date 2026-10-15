@@ -2,6 +2,7 @@ import {
   QueryClient,
   useInfiniteQuery,
   useMutation,
+  useQueries,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
@@ -27,6 +28,9 @@ import type {
   ScoreStatusResponse,
   ResumeUpload,
 } from './types'
+import { buildApplicationsQuery, kanbanColumnFilters, type AppFilters } from './kanbanBoard'
+
+export type { AppFilters } from './kanbanBoard'
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -34,32 +38,21 @@ export const queryClient = new QueryClient({
   },
 })
 
-export interface AppFilters {
-  stages?: Stage[]
-  q?: string
-  from?: string
-  to?: string
-}
-
-function buildQuery(filters: AppFilters, cursor?: string): string {
-  const p = new URLSearchParams()
-  // The list endpoint takes a single stage; multi-select filtering for the
-  // table is applied client-side after fetch (see ListPage).
-  if (filters.stages?.length === 1) p.set('stage', filters.stages[0])
-  if (filters.q) p.set('q', filters.q)
-  if (filters.from) p.set('from', filters.from)
-  if (filters.to) p.set('to', filters.to)
-  if (cursor) p.set('cursor', cursor)
-  p.set('limit', '50')
-  const s = p.toString()
-  return s ? `?${s}` : ''
-}
-
 export function useApplications(filters: AppFilters = {}) {
   return useQuery({
     queryKey: ['applications', filters],
     queryFn: () =>
-      api<ListApplicationsResponse>('/applications' + buildQuery(filters)),
+      api<ListApplicationsResponse>('/applications' + buildApplicationsQuery(filters)),
+  })
+}
+
+export function useKanbanColumns() {
+  return useQueries({
+    queries: kanbanColumnFilters().map((filters) => ({
+      queryKey: ['applications', filters],
+      queryFn: () =>
+        api<ListApplicationsResponse>('/applications' + buildApplicationsQuery(filters)),
+    })),
   })
 }
 
@@ -68,7 +61,7 @@ export function useInfiniteApplications(filters: AppFilters = {}) {
     queryKey: ['applications-list', filters],
     queryFn: ({ pageParam }) =>
       api<ListApplicationsResponse>(
-        '/applications' + buildQuery(filters, pageParam as string | undefined),
+        '/applications' + buildApplicationsQuery(filters, pageParam as string | undefined),
       ),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,

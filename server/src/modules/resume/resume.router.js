@@ -13,10 +13,11 @@ import { prisma } from '../../lib/db.js'
 import { streamLlm } from '../../llm/llm.service.js'
 import { SYSTEM_PROMPT, buildTailoringPrompt, VERSION } from '../../prompts/tailoring.js'
 import { TailoringSchema } from '../../llm/schemas/tailoring.schema.js'
-import { pdfQueue } from '../../jobs/pdf/pdf.queue.js'
 import { getSignedUrl } from '../../lib/storage.js'
 import { resumePdfState } from './resumePdf.js'
 import { getResumeUploadForUser, getResumeVersionForUser } from './resumeAccess.js'
+import { upsertResumeVersion } from './resumeVersion.service.js'
+import { hashResumeBlocks } from '../../lib/resumeHash.js'
 import { extractPdfText } from '../../lib/pdfExtract.js'
 import { resumeUploadQueue } from '../../jobs/resumeUpload/resumeUpload.queue.js'
 import * as resumeService from './resumeBlocks.service.js'
@@ -49,7 +50,12 @@ const ReorderSchema = z.object({
 
 const ResumeVersionBodySchema = z.object({
   approvedBlocks: z.array(
-    z.object({ blockId: z.string(), content: z.string() })
+    z.object({
+      blockId: z.string(),
+      content: z.string(),
+      section: z.string().min(1),
+      skillTags: z.array(z.string()).default([]),
+    })
   ).min(1),
 })
 
@@ -146,6 +152,7 @@ resumeRouter.post('/applications/:id/tailor', requireCsrf, rateLimitLlm, async (
       applicationId: app.id,
       kind: 'TAILOR',
       jdHash: app.jd.jdHash,
+      resumeHash: hashResumeBlocks(resumeBlocks),
       resumeVersionId: undefined,
       promptVersion: VERSION,
     }, (token) => {
@@ -162,27 +169,7 @@ resumeRouter.post('/applications/:id/tailor', requireCsrf, rateLimitLlm, async (
 })
 
 resumeRouter.post('/applications/:id/resume-version', requireCsrf, validateBody(ResumeVersionBodySchema), asyncHandler(async (req, res) => {
-  const app = await prisma.application.findUnique({ where: { id: req.params.id } })
-  if (!app) {
-    throw AppError.notFound('Application not found')
-  }
-  if (app.userId !== req.user.id) {
-    throw AppError.forbidden('Forbidden')
-  }
-
-  const version = await prisma.resumeVersion.create({
-    data: {
-      userId: req.user.id,
-      applicationId: app.id,
-      blocksSnapshot: req.body.approvedBlocks,
-    },
-  })
-
-  await pdfQueue.add('render', {
-    resumeVersionId: version.id,
-    userId: req.user.id,
-  })
-
+  const version = await upsertResumeVersion(req.user.id, req.params.id, req.body.approvedBlocks)
   created(res, { resumeVersionId: version.id })
 }))
 

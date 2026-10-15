@@ -24,6 +24,7 @@ vi.mock('../lib/cache.js', () => ({
 }))
 
 import { prisma } from '../lib/db.js'
+import { invalidate } from '../lib/cache.js'
 import { getApplication, deleteApplication } from '../modules/applications/applications.service.js'
 
 const OWNER = 'user-owner'
@@ -152,6 +153,10 @@ describe('deleteApplication', () => {
       where: { id: APP_ID },
       data: { deletedAt: expect.any(Date) },
     })
+    expect(invalidate).toHaveBeenCalledWith(
+      `dashboard:funnel:${OWNER}`,
+      `dashboard:velocity:${OWNER}`,
+    )
   })
 
   it('does not update when the application is already deleted', async () => {

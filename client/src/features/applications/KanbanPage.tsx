@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -13,17 +13,12 @@ import { useQueryClient } from '@tanstack/react-query'
 import PageHeader from '../../components/PageHeader'
 import { Button, EmptyState, Spinner } from '../../components/ui'
 import { STAGES } from '../../lib/stages'
-import {
-  useApplications,
-  usePatchApplication,
-  type AppFilters,
-} from '../../lib/queries'
+import { useKanbanColumns, usePatchApplication } from '../../lib/queries'
+import { moveApplicationAcrossStageLists } from '../../lib/kanbanBoard'
 import type { Application, ListApplicationsResponse, Stage } from '../../lib/types'
 import KanbanCard from './KanbanCard'
 import AddApplicationModal from './AddApplicationModal'
 import DetailDrawer from './DetailDrawer'
-
-const EMPTY_FILTERS: AppFilters = {}
 
 function Column({
   stage,
@@ -64,23 +59,20 @@ function Column({
 
 export default function KanbanPage() {
   const qc = useQueryClient()
-  const { data, isLoading } = useApplications(EMPTY_FILTERS)
+  const columnQueries = useKanbanColumns()
   const patch = usePatchApplication()
   const [adding, setAdding] = useState(false)
   const [openId, setOpenId] = useState<string | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
-  const byStage = useMemo(() => {
-    const map = Object.fromEntries(STAGES.map((s) => [s.code, [] as Application[]])) as Record<
-      Stage,
-      Application[]
-    >
-    for (const app of data?.items ?? []) map[app.stage].push(app)
-    return map
-  }, [data])
-
-  const activeApp = data?.items.find((a) => a.id === activeId) ?? null
+  const isLoading = columnQueries.some((q) => q.isLoading)
+  const byStage = Object.fromEntries(
+    STAGES.map((s, i) => [s.code, columnQueries[i].data?.items ?? []]),
+  ) as Record<Stage, Application[]>
+  const total = STAGES.reduce((n, s) => n + byStage[s.code].length, 0)
+  const activeApp =
+    STAGES.map((s) => byStage[s.code].find((a) => a.id === activeId)).find(Boolean) ?? null
 
   function onDragStart(e: DragStartEvent) {
     setActiveId(String(e.active.id))
@@ -93,15 +85,16 @@ export default function KanbanPage() {
     const to = e.over?.id as Stage | undefined
     if (!to || !from || from === to) return
 
-    // Optimistic: move the card immediately across every cached list query.
-    qc.setQueriesData<ListApplicationsResponse>({ queryKey: ['applications'] }, (old) =>
-      old
-        ? {
-            ...old,
-            items: old.items.map((a) => (a.id === id ? { ...a, stage: to } : a)),
-          }
-        : old,
-    )
+    const next = moveApplicationAcrossStageLists(byStage, id, from, to)
+    for (const s of STAGES) {
+      qc.setQueryData<ListApplicationsResponse>(
+        ['applications', { stages: [s.code] }],
+        (old) =>
+          old
+            ? { ...old, items: next[s.code] ?? [] }
+            : { items: next[s.code] ?? [], nextCursor: null },
+      )
+    }
     patch.mutate({ id, patch: { stage: to } })
   }
 
@@ -119,7 +112,7 @@ export default function KanbanPage() {
           <div className="flex items-center gap-2 text-ink-soft">
             <Spinner /> <span className="font-mono text-xs">Loading pipeline…</span>
           </div>
-        ) : (data?.items.length ?? 0) === 0 ? (
+        ) : total === 0 ? (
           <EmptyState
             title="No applications yet"
             hint="Add your first role to start tracking the hunt. Paste a URL or the raw JD and the pipeline takes it from there."

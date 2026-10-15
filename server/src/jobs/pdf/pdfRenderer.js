@@ -83,6 +83,15 @@ export async function renderResumePdf(blocks, userInfo) {
   return Buffer.from(buf)
 }
 
+export function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
 export async function renderResumePdfFallback(blocks, userInfo) {
   const { default: puppeteer } = await import('puppeteer')
 
@@ -100,8 +109,8 @@ export async function renderResumePdfFallback(blocks, userInfo) {
     .map(
       ([section, bs]) => `
       <section>
-        <h2>${section}</h2>
-        ${bs.map((b) => `<p>${b.content}</p>${b.skillTags?.length ? `<small>${b.skillTags.join(' · ')}</small>` : ''}`).join('')}
+        <h2>${escapeHtml(section)}</h2>
+        ${bs.map((b) => `<p>${escapeHtml(b.content)}</p>${b.skillTags?.length ? `<small>${escapeHtml(b.skillTags.join(' · '))}</small>` : ''}`).join('')}
       </section>`
     )
     .join('')
@@ -113,7 +122,7 @@ export async function renderResumePdfFallback(blocks, userInfo) {
     p { margin: 0 0 6px; line-height: 1.5; }
     small { font-size: 9pt; color: #666; }
   </style></head><body>
-    <h1>${userInfo.email}</h1>
+    <h1>${escapeHtml(userInfo.email)}</h1>
     ${sectionsHtml}
   </body></html>`
 

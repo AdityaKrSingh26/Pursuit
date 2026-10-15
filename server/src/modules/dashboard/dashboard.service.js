@@ -25,14 +25,15 @@ function get8WeeksStartDatesUTC() {
 
 export async function getFunnel(userId) {
   return cached(CacheKey.funnelStats(userId), 900, async () => {
-    // Read from materialized view — pre-aggregated, O(log n) lookup
-    const rows = await prisma.$queryRaw`
-      SELECT stage, cnt FROM mv_user_funnel WHERE "userId" = ${userId}
-    `
+    const rows = await prisma.application.groupBy({
+      by: ['stage'],
+      where: { userId, deletedAt: null },
+      _count: { _all: true },
+    })
 
     const stageCounts = {}
     for (const s of ALL_STAGES) stageCounts[s] = 0
-    for (const row of rows) stageCounts[row.stage] = Number(row.cnt)
+    for (const row of rows) stageCounts[row.stage] = Number(row._count._all)
 
     const conversionRates = {}
     for (const s of ALL_STAGES) conversionRates[s] = null

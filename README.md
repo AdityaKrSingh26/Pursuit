@@ -96,7 +96,7 @@ At 5+ parsed applications, the Intel page shows:
 - **Similar jobs** — HNSW nearest-neighbor search per JD
 
 ### Dashboard
-Funnel conversion, weekly velocity, LLM cost tracking. Stage counts from a materialized view refreshed every 15 min. Responses Redis-cached (15 min TTL), invalidated on write.
+Funnel occupancy (current mix across stages, not path conversion), weekly velocity, LLM cost tracking. Stage counts from live applications. Responses Redis-cached (15 min TTL), invalidated on create, stage change, and delete.
 
 ---
 

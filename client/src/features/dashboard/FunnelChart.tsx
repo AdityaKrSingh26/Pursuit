@@ -1,6 +1,7 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts'
 import { stageMeta } from '../../lib/stages'
 import type { Stage } from '../../lib/types'
+import { FUNNEL_CHART_TITLE } from '../../lib/funnelCopy'
 
 const stageColors: Record<string, string> = {
   SAVED: '#A5C4D4',
@@ -48,7 +49,7 @@ export default function FunnelChart({ stageCounts, conversionRates }: FunnelChar
 
   return (
     <div className="press !shadow-hard p-5 bg-paper-3 border-[1.5px] border-line">
-      <p className="label mb-4">Stage conversion</p>
+      <p className="label mb-4">{FUNNEL_CHART_TITLE}</p>
       <ResponsiveContainer width="100%" height={260}>
         <BarChart data={data} margin={{ top: 20, right: 8, bottom: 0, left: -22 }}>
           <CartesianGrid stroke="#1A171214" vertical={false} />
