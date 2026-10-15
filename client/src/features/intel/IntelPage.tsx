@@ -23,7 +23,7 @@ export default function IntelPage() {
       <PageHeader
         index="05"
         title="Intelligence"
-        subtitle="JD embeddings, skill demands, and similarity clusters."
+        subtitle="Skill demand, gaps, and cosine ≥ 0.7 clusters after one structured JD."
       />
 
       <div className="flex-1 overflow-y-auto px-8 py-6">

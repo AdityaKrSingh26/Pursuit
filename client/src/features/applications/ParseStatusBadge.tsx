@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useJdStatus } from '../../lib/queries'
 import { Spinner } from '../../components/ui'
 import { api } from '../../lib/api'
+import { shouldNotifyParseDone } from '../../lib/parseStatus'
 import type { ParseStatus } from '../../lib/types'
 
 const LABELS: Record<ParseStatus, string> = {
@@ -23,8 +24,11 @@ export default function ParseStatusBadge({
   const [reparsing, setReparsing] = useState(false)
   const status = data?.parseStatus ?? 'QUEUED'
 
+  useEffect(() => {
+    if (shouldNotifyParseDone(status)) onDone?.()
+  }, [status, onDone])
+
   if (status === 'DONE') {
-    onDone?.()
     return (
       <span className="inline-flex items-center gap-1.5 border border-matched bg-matched/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-matched">
         ✓ Parsed

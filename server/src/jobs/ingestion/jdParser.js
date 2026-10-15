@@ -1,5 +1,6 @@
 import { env } from '../../lib/env.js'
 import { chat } from '../../lib/llm.js'
+import { parseJsonFromLlm } from '../../lib/llmJson.js'
 import { JdStructuredSchema } from '../../llm/schemas/jdStructured.schema.js'
 import { buildJdParsePrompt } from '../../prompts/jd-parse.js'
 
@@ -16,7 +17,7 @@ async function callOnce(rawText, extraInstruction = '') {
     model: env.LLM_MODEL,
     maxTokens: env.LLM_MAX_TOKENS,
   })
-  return JSON.parse(text)
+  return parseJsonFromLlm(text)
 }
 
 export async function parseJd(rawText) {

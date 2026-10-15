@@ -111,4 +111,4 @@ export async function apiUpload<T = unknown>(path: string, file: File, _retried 
   return body as T
 }
 
-export { readCsrf, BASE }
+export { readCsrf, BASE, tryRefresh }

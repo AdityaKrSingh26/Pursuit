@@ -5,15 +5,17 @@ import { asyncHandler } from '../../lib/asyncHandler.js'
 import { ok } from '../../lib/response.js'
 import { discoveryQueue } from '../../jobs/discovery/discovery.queue.js'
 import { scoringQueue } from '../../jobs/scoring/scoring.queue.js'
+import { validateQuery } from '../../lib/validate.js'
+import { ListJobsSchema } from './jobs.schemas.js'
 import { isStale, getLastScanAt, listJobs } from './jobs.service.js'
 
 export const jobsRouter = Router()
 jobsRouter.use(requireAuth)
 
-jobsRouter.get('/jobs', asyncHandler(async (req, res) => {
-  const jobs = await listJobs(req.user.id)
+jobsRouter.get('/jobs', validateQuery(ListJobsSchema), asyncHandler(async (req, res) => {
+  const { jobs, nextCursor, total } = await listJobs(req.user.id, req.query)
   const lastScanAt = await getLastScanAt()
-  ok(res, { jobs, lastScanAt, total: jobs.length })
+  ok(res, { jobs, nextCursor, lastScanAt, total })
 }))
 
 jobsRouter.post('/jobs/refresh', requireCsrf, asyncHandler(async (req, res) => {

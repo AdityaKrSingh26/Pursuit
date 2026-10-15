@@ -13,7 +13,7 @@ vi.mock('../lib/db.js', () => ({
       findUnique: vi.fn(),
       update: vi.fn(),
     },
-    application: { findUnique: vi.fn() },
+    application: { findUnique: vi.fn(), findFirst: vi.fn() },
   },
 }))
 
@@ -21,7 +21,7 @@ import { prisma } from '../lib/db.js'
 import { updateBlock, archiveBlock } from '../modules/resume/resumeBlocks.service.js'
 import { getResumeUploadForUser, getResumeVersionForUser } from '../modules/resume/resumeAccess.js'
 import { dismissReminder } from '../modules/reminders/reminders.service.js'
-import { loadAppWithJd } from '../modules/analysis/analysis.access.js'
+import { loadAppWithJd, loadOwnedApplication } from '../modules/analysis/analysis.access.js'
 
 const OWNER = 'user-owner'
 const OTHER = 'user-other'
@@ -72,11 +72,46 @@ describe('IDOR: analysis application', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('forbids loading another user\'s application for analysis', async () => {
-    prisma.application.findUnique.mockResolvedValue({
+    prisma.application.findFirst.mockResolvedValue({
       id: 'a1',
       userId: OWNER,
+      deletedAt: null,
       jd: { parseStatus: 'DONE' },
     })
     await expect(loadAppWithJd('a1', OTHER)).rejects.toMatchObject({ statusCode: 403 })
+  })
+
+  it('404s a soft-deleted application even for the owner', async () => {
+    prisma.application.findFirst.mockResolvedValue({
+      id: 'a1',
+      userId: OWNER,
+      deletedAt: new Date(),
+      jd: { parseStatus: 'DONE' },
+    })
+    await expect(loadAppWithJd('a1', OWNER)).rejects.toMatchObject({ statusCode: 404 })
+  })
+})
+
+describe('IDOR: similar jobs', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('forbids similar-jobs on another user\'s application', async () => {
+    prisma.application.findFirst.mockResolvedValue({
+      id: 'a1',
+      userId: OWNER,
+      deletedAt: null,
+      jdId: 'jd-1',
+    })
+    await expect(loadOwnedApplication('a1', OTHER)).rejects.toMatchObject({ statusCode: 403 })
+  })
+
+  it('404s similar-jobs on a deleted application', async () => {
+    prisma.application.findFirst.mockResolvedValue({
+      id: 'a1',
+      userId: OWNER,
+      deletedAt: new Date(),
+      jdId: 'jd-1',
+    })
+    await expect(loadOwnedApplication('a1', OWNER)).rejects.toMatchObject({ statusCode: 404 })
   })
 })

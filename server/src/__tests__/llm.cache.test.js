@@ -19,8 +19,13 @@ vi.mock('../lib/llm.js', () => ({
   chatStream: vi.fn(),
 }))
 
+vi.mock('../lib/redis.js', () => ({
+  redis: { eval: vi.fn() },
+}))
+
 import { prisma } from '../lib/db.js'
 import { chat } from '../lib/llm.js'
+import { redis } from '../lib/redis.js'
 import { callLlm } from '../llm/llm.service.js'
 import { hashResumeBlocks } from '../lib/resumeHash.js'
 
@@ -92,5 +97,35 @@ describe('analysis cache', () => {
     expect(result).toEqual({ foo: 'email' })
     expect(prisma.analysis.findFirst).not.toHaveBeenCalled()
     expect(prisma.analysis.create).not.toHaveBeenCalled()
+  })
+
+  it('does not count a cache hit against the daily LLM quota', async () => {
+    prisma.analysis.findFirst.mockResolvedValue({
+      result: { foo: 'cached', promptVersion: 'gap-v1' },
+    })
+    await callLlm({ ...baseParams, userId: 'user-1' })
+    expect(redis.eval).not.toHaveBeenCalled()
+    expect(chat).not.toHaveBeenCalled()
+  })
+
+  it('increments quota on a cache miss then calls the LLM', async () => {
+    prisma.analysis.findFirst.mockResolvedValue(null)
+    redis.eval.mockResolvedValue(1)
+    chat.mockResolvedValue({
+      text: JSON.stringify({ foo: 'fresh' }),
+      usage: { input_tokens: 1, output_tokens: 1 },
+    })
+    await callLlm({ ...baseParams, userId: 'user-1' })
+    expect(redis.eval).toHaveBeenCalled()
+    expect(chat).toHaveBeenCalled()
+  })
+
+  it('consumes quota after a cache miss and 429s before calling the LLM', async () => {
+    prisma.analysis.findFirst.mockResolvedValue(null)
+    redis.eval.mockResolvedValue(31)
+    await expect(callLlm({ ...baseParams, userId: 'user-1' })).rejects.toMatchObject({
+      statusCode: 429,
+    })
+    expect(chat).not.toHaveBeenCalled()
   })
 })

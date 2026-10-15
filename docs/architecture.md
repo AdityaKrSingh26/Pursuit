@@ -29,7 +29,7 @@ graph TB
         WI["jd-ingestion\nfetch → parse → embed"]
         WP["pdf-render"]
         WR["reminders  cron 08:00"]
-        WD["job-discovery\n8 sources + TinyFish fallback"]
+        WD["job-discovery\n7 sources + TinyFish fallback"]
         WS["job-scoring\nper-user LLM relevance score"]
         WRU["resume-upload\nPDF text extract → LLM structuring"]
         WMV["dashboard-refresh\nREFRESH MATVIEW  15 min"]
@@ -84,7 +84,7 @@ sequenceDiagram
     A-->>B: 201 Created
 
     W->>Q: dequeue jd-ingestion
-    W->>EXT_TF: fetch careers page → markdown
+    W->>W: fetch URL (axios, maxRedirects 0) + Readability
     W->>L: parse JD → structured JSON
     W->>DB: UPSERT JobDescription (by jdHash — global dedup)
     W->>L: embed rawText → vector[1536]
@@ -102,7 +102,7 @@ sequenceDiagram
     participant DB as PostgreSQL
     participant L as LLM API
 
-    B->>A: POST /api/v1/applications/:id/gap-analysis
+    B->>A: POST /api/v1/applications/:id/analysis/gap
     A->>DB: load Application + JobDescription + ResumeBlocks
     A->>B: HTTP 200, Content-Type: text/event-stream
 
@@ -118,6 +118,8 @@ sequenceDiagram
     A-->>B: data: {"type":"done"}
 ```
 
+Cache hits (same `applicationId` / kind / `jdHash` / `resumeHash` / prompt version) skip the LLM and do not count against the 30/day quota. Markdown-fenced LLM JSON is stripped before `JSON.parse`. Embedding writes fail if the vector is not 1536 dimensions.
+
 ---
 
 ## Job Discovery Flow
@@ -129,7 +131,7 @@ flowchart TD
     B -- no --> D{scan already\nqueued/running?}
     D -- yes --> E[return status: already_running]
     D -- no --> F[enqueue job-discovery\nto BullMQ]
-    F --> G1[Worker: 8 structured sources\nin parallel — YC, Greenhouse, Lever,\nAshby, Remotive, Adzuna, Wellfound, Arbeitnow]
+    F --> G1[Worker: 7 structured sources\nin parallel — YC, Greenhouse, Lever,\nAshby, Remotive, Adzuna, Arbeitnow]
     G1 --> G[for companies with no ATS id:\nTinyFish careers-page scrape fallback]
     G --> H[TinyFish fetch\ncareers page → markdown]
     H --> I[regex extract\njob links]
@@ -147,6 +149,8 @@ flowchart TD
     R --> S[UPSERT UserJobScore\nUPDATE DiscoveredJob.techStack]
     S --> T([jobs re-sorted by score])
 ```
+
+Discovery is on demand (`POST /jobs/refresh`), not a nightly cron. The 12-hour freshness check and the scan itself are global: any authenticated user may enqueue one scan that fills `DiscoveredJob` for everyone. `GET /jobs` is cursor-paginated (default 50). Wellfound is not in the enabled source list.
 
 ---
 
@@ -214,22 +218,22 @@ Funnel percents are occupancy mix (current count in this stage ÷ current count 
 ```mermaid
 flowchart TB
     subgraph Queues["BullMQ Queues (Redis-backed)"]
-        Q1["jd-ingestion\nconcurrency: 3"]
-        Q2["embedding\nconcurrency: 5"]
-        Q3["pdf-render\nconcurrency: 2"]
+        Q1["jd-ingestion\nconcurrency: 3\nattempts: 3 exp backoff"]
+        Q2["embedding\nconcurrency: 2\nattempts: 3 exp backoff"]
+        Q3["pdf-render\nconcurrency: 2\nattempts: 3 exp backoff"]
         Q4["reminders\ncron: 0 8 * * *"]
         Q5["job-discovery\nconcurrency: 1"]
-        Q7["job-scoring\nbatch 10 jobs/LLM call"]
-        Q8["resume-upload\nconcurrency: 3"]
+        Q7["job-scoring\nbatch 10 jobs/LLM call\nattempts: 3 exp backoff"]
+        Q8["resume-upload\nconcurrency: 3\nattempts: 3 exp backoff"]
         Q6["dashboard-refresh\nevery: 15 min"]
     end
 
     subgraph Jobs["What each worker does"]
         Q1 --> J1["fetch URL via readability\nLLM parse → structured JSON\nstore JobDescription"]
-        Q2 --> J2["embed rawText → vector[1536]\nstore in JobDescription.embedding"]
+        Q2 --> J2["embed rawText → vector[1536]\nfail if length !== 1536"]
         Q3 --> J3["render ResumeVersion blocks\nto PDF via react-pdf\nupload to Cloudinary"]
         Q4 --> J4["scan Applications silent > 7 days\ngenerate follow-up email draft\ncreate Reminder rows"]
-        Q5 --> J5["8 structured sources in parallel\n+ TinyFish scrape fallback\nupsert DiscoveredJob"]
+        Q5 --> J5["7 structured sources in parallel\n+ optional TinyFish fallback\n(Wellfound scrape disabled)\nupsert DiscoveredJob"]
         Q7 --> J7["score unscored DiscoveredJobs\nagainst user's ResumeBlocks\nUPSERT UserJobScore"]
         Q8 --> J8["extract PDF text\nLLM → structured resume blocks\ncreate ResumeBlock rows"]
         Q6 --> J6["REFRESH MATERIALIZED VIEW\nCONCURRENTLY mv_user_funnel"]
@@ -249,6 +253,8 @@ flowchart TB
 | ANN search | HNSW | IVFFlat: requires upfront clustering, poor for dynamic inserts |
 | Background jobs | BullMQ + Redis | In-process cron: no retries or observability; SQS/Lambda: cloud lock-in |
 | LLM streaming | SSE | WebSockets: bidirectional not needed; SSE is simpler and proxy-friendly |
-| Auth | JWT in httpOnly cookie + rotating refresh | localStorage: XSS-exposed; server sessions: fine but JWT handles stateless scaling |
+| Auth | HS256 JWT in httpOnly cookie + hashed rotating refresh + double-submit CSRF on resource mutations | localStorage: XSS-exposed; server sessions: fine but JWT handles stateless scaling. Auth POSTs skip CSRF because cookies are SameSite=lax. Same-origin only (Vite proxy / prod static); helmet headers on the API. |
+| Discovery schedule | On-demand Refresh, 12h global cache | Nightly cron: extra worker schedule for a table that is already filled by the first stale requester |
+| Wellfound | Disabled | Keep HTML scrape: no official API, ToS-sensitive, brittle `__NEXT_DATA__` |
 | Soft deletes | `deletedAt` timestamp | Hard delete: no undo, no GDPR audit trail |
 | Dashboard aggregation | Materialized view + Redis cache | Raw query on every request: O(rows) per page load |

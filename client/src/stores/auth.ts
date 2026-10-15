@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { api, readCsrf } from '../lib/api'
+import { sessionAfterMeFailure, sessionFromMe } from '../lib/session'
 import type { AuthUser } from '../lib/types'
 
 interface AuthState {
@@ -11,6 +12,7 @@ interface AuthState {
   logout: () => Promise<void>
   // Re-reads the csrf cookie after a refresh / page reload.
   syncCsrf: () => void
+  hydrate: () => Promise<AuthUser | null>
 }
 
 // The httpOnly accessToken cookie is the real source of auth; we persist only
@@ -47,6 +49,17 @@ export const useAuth = create<AuthState>()(
 
       syncCsrf() {
         set({ csrfToken: readCsrf() })
+      },
+
+      async hydrate() {
+        try {
+          const user = await api<AuthUser>('/auth/me')
+          set(sessionFromMe(user, readCsrf()))
+          return user
+        } catch {
+          set(sessionAfterMeFailure())
+          return null
+        }
       },
     }),
     { name: 'pursuit-auth', partialize: (s) => ({ user: s.user }) },

@@ -29,6 +29,7 @@ import type {
   ResumeUpload,
 } from './types'
 import { buildApplicationsQuery, kanbanColumnFilters, type AppFilters } from './kanbanBoard'
+import { invalidateApplicationQueries } from './queryInvalidation'
 
 export type { AppFilters } from './kanbanBoard'
 
@@ -100,7 +101,7 @@ export function useCreateApplication() {
   return useMutation({
     mutationFn: (input: CreateApplicationInput) =>
       api<Application>('/applications', { method: 'POST', body: input }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['applications'] }),
+    onSuccess: () => invalidateApplicationQueries(qc),
   })
 }
 
@@ -133,7 +134,7 @@ export function useDeleteApplication() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => api(`/applications/${id}`, { method: 'DELETE' }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['applications'] }),
+    onSuccess: () => invalidateApplicationQueries(qc),
   })
 }
 
@@ -223,9 +224,16 @@ export function useDismissReminder() {
 }
 
 export function useDiscoveredJobs() {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ['discovered-jobs'],
-    queryFn: () => api<DiscoveredJobsResponse>('/jobs'),
+    queryFn: ({ pageParam }) => {
+      const p = new URLSearchParams()
+      p.set('limit', '50')
+      if (pageParam) p.set('cursor', String(pageParam))
+      return api<DiscoveredJobsResponse>('/jobs?' + p.toString())
+    },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
     staleTime: 60_000,
   })
 }

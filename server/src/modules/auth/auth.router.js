@@ -8,6 +8,7 @@ import { asyncHandler } from '../../lib/asyncHandler.js'
 import { validateBody } from '../../lib/validate.js'
 import { ok, created } from '../../lib/response.js'
 import { generateCsrfToken } from '../../middleware/csrf.js'
+import { requireAuth } from '../../middleware/auth.js'
 import { createRefreshToken, rotateRefreshToken, revokeFamily } from './refreshToken.service.js'
 import { rateLimitLogin, rateLimitRegister } from '../../middleware/rateLimitAuth.js'
 
@@ -18,27 +19,40 @@ const credentialsSchema = z.object({
   password: z.string().min(8),
 })
 
-const ACCESS_COOKIE_OPTS = {
-  httpOnly: true,
+const COOKIE_BASE = {
   secure: process.env.NODE_ENV === 'production',
   sameSite: 'lax',
+  path: '/',
+}
+
+const ACCESS_COOKIE_OPTS = {
+  ...COOKIE_BASE,
+  httpOnly: true,
   maxAge: 15 * 60 * 1000,
 }
 
 const REFRESH_COOKIE_OPTS = {
+  ...COOKIE_BASE,
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'lax',
   maxAge: 7 * 24 * 60 * 60 * 1000,
+}
+
+const CSRF_COOKIE_OPTS = {
+  ...COOKIE_BASE,
+  httpOnly: false, // JS-readable so client can attach as x-csrf-token header
+  maxAge: REFRESH_COOKIE_OPTS.maxAge,
 }
 
 function setAuthCookies(res, accessToken, refreshToken) {
   res.cookie('accessToken', accessToken, ACCESS_COOKIE_OPTS)
   res.cookie('refreshToken', refreshToken, REFRESH_COOKIE_OPTS)
-  res.cookie('csrfToken', generateCsrfToken(), {
-    ...REFRESH_COOKIE_OPTS,
-    httpOnly: false, // JS-readable so client can attach as x-csrf-token header
-  })
+  res.cookie('csrfToken', generateCsrfToken(), CSRF_COOKIE_OPTS)
+}
+
+function clearAuthCookies(res) {
+  res.clearCookie('accessToken', { ...COOKIE_BASE, httpOnly: true })
+  res.clearCookie('refreshToken', { ...COOKIE_BASE, httpOnly: true })
+  res.clearCookie('csrfToken', { ...COOKIE_BASE, httpOnly: false })
 }
 
 authRouter.post('/register', validateBody(credentialsSchema), rateLimitRegister, asyncHandler(async (req, res) => {
@@ -83,7 +97,19 @@ authRouter.post('/refresh', asyncHandler(async (req, res) => {
   const { raw: newRaw, userId } = await rotateRefreshToken(raw)
   res.cookie('accessToken', signAccessToken(userId), ACCESS_COOKIE_OPTS)
   res.cookie('refreshToken', newRaw, REFRESH_COOKIE_OPTS)
+  res.cookie('csrfToken', generateCsrfToken(), CSRF_COOKIE_OPTS)
   ok(res, { ok: true })
+}))
+
+authRouter.get('/me', requireAuth, asyncHandler(async (req, res) => {
+  const user = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { id: true, email: true },
+  })
+  if (!user) {
+    throw AppError.unauthorized()
+  }
+  ok(res, user)
 }))
 
 authRouter.post('/logout', asyncHandler(async (req, res) => {
@@ -96,8 +122,6 @@ authRouter.post('/logout', asyncHandler(async (req, res) => {
       await revokeFamily(token.userId)
     }
   }
-  res.clearCookie('accessToken')
-  res.clearCookie('refreshToken')
-  res.clearCookie('csrfToken')
+  clearAuthCookies(res)
   ok(res, { ok: true })
 }))

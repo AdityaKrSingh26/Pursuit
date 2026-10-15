@@ -304,6 +304,7 @@ export interface DiscoveredJob {
 
 export interface DiscoveredJobsResponse {
   jobs: DiscoveredJob[]
+  nextCursor: string | null
   lastScanAt: string | null
   total: number
 }

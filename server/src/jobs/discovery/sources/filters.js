@@ -6,9 +6,17 @@ export const ROLE_KEYWORDS = [
   'software engineer',
   'backend engineer',
   'backend developer',
+  'frontend',
+  'front-end',
+  'front end',
   'full stack',
   'fullstack',
   'platform engineer',
+  'mobile engineer',
+  'mobile developer',
+  'ios engineer',
+  'android',
+  'react native',
   'sde',
   'swe',
   'ai engineer',
@@ -17,7 +25,7 @@ export const ROLE_KEYWORDS = [
   'software developer',
 ]
 
-const EXCLUDE_TITLE_RE = /\b(senior|staff|principal|lead|manager|director|vp|head of|10\+|8\+ years|7\+ years|6\+ years|5\+ years)\b/i
+const EXCLUDE_TITLE_RE = /\b(manager|director|vp|head of|10\+|8\+ years|7\+ years|6\+ years|5\+ years)\b/i
 
 export function titleLooksRelevant(title) {
   const lower = (title ?? '').toLowerCase()

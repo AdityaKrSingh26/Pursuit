@@ -23,6 +23,7 @@
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.2",
     "express": "^5.1.0",
+    "helmet": "^8.3.0",
     "ioredis": "^5.11.1",
     "ipaddr.js": "^2.4.0",
     "jsdom": "^29.1.1",

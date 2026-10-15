@@ -1,4 +1,5 @@
 import { BASE, readCsrf, ApiError } from './api'
+import { fetchWith401Refresh } from './sseRefresh'
 import type { SSEEvent } from './types'
 
 // POST-initiated SSE: EventSource only does GET, so we stream the fetch body
@@ -12,11 +13,17 @@ export async function streamAnalysis<T>(
   const csrf = readCsrf()
   if (csrf) headers.set('x-csrf-token', csrf)
 
-  const res = await fetch(BASE + path, {
-    method: 'POST',
-    headers,
-    credentials: 'include',
-    signal,
+  const doFetch = () =>
+    fetch(BASE + path, {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+      signal,
+    })
+
+  const res = await fetchWith401Refresh(doFetch, async () => {
+    const { useAuth } = await import('../stores/auth')
+    useAuth.setState({ user: null, csrfToken: null })
   })
 
   if (!res.ok) {

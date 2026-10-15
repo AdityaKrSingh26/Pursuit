@@ -1,17 +1,12 @@
 import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
 import { env } from './env.js'
+import { rotateAcrossKeys } from './keyRotation.js'
 
-let _anthropic
+const _anthropicClients = new Map()
 const _openaiClients = new Map()
 let keyIndex = 0
 
-function anthropicClient() {
-  if (!_anthropic) _anthropic = new Anthropic({ apiKey: env.LLM_API_KEY, timeout: 30000 })
-  return _anthropic
-}
-
-// Multiple keys let us rotate past a rate-limited key instead of failing the request.
 function apiKeyPool() {
   if (env.LLM_API_KEYS) {
     const keys = env.LLM_API_KEYS.split(',').map((k) => k.trim()).filter(Boolean)
@@ -36,23 +31,21 @@ function openaiClientFor(apiKey) {
   return _openaiClients.get(apiKey)
 }
 
-// Runs fn(client) against each key in the pool, starting after the last key that worked,
-// moving to the next key whenever the current one comes back rate-limited (HTTP 429).
-async function withKeyRotation(fn) {
-  const keys = apiKeyPool()
-  let lastErr
-  for (let i = 0; i < keys.length; i++) {
-    const key = keys[(keyIndex + i) % keys.length]
-    try {
-      const result = await fn(openaiClientFor(key))
-      keyIndex = (keyIndex + i) % keys.length
-      return result
-    } catch (e) {
-      lastErr = e
-      if (e?.status !== 429) throw e
-    }
+function anthropicClientFor(apiKey) {
+  if (!_anthropicClients.has(apiKey)) {
+    _anthropicClients.set(apiKey, new Anthropic({ apiKey, timeout: 30000 }))
   }
-  throw lastErr
+  return _anthropicClients.get(apiKey)
+}
+
+async function withKeyRotation(makeClient, fn) {
+  const { result, keyIndex: next } = await rotateAcrossKeys(
+    apiKeyPool(),
+    keyIndex,
+    (key) => fn(makeClient(key)),
+  )
+  keyIndex = next
+  return result
 }
 
 // chat({ system?, messages, model, maxTokens })
@@ -60,7 +53,7 @@ async function withKeyRotation(fn) {
 export async function chat({ system, messages, model, maxTokens }) {
   if (env.LLM_PROVIDER === 'openai') {
     const openaiMessages = system ? [{ role: 'system', content: system }, ...messages] : messages
-    const res = await withKeyRotation((client) => client.chat.completions.create({
+    const res = await withKeyRotation(openaiClientFor, (client) => client.chat.completions.create({
       model,
       max_tokens: maxTokens,
       messages: openaiMessages,
@@ -71,12 +64,12 @@ export async function chat({ system, messages, model, maxTokens }) {
     }
   }
 
-  const res = await anthropicClient().messages.create({
+  const res = await withKeyRotation(anthropicClientFor, (client) => client.messages.create({
     model,
     max_tokens: maxTokens,
     ...(system ? { system } : {}),
     messages,
-  })
+  }))
   return {
     text: res.content[0]?.type === 'text' ? res.content[0].text : '',
     usage: { input_tokens: res.usage.input_tokens, output_tokens: res.usage.output_tokens },
@@ -88,7 +81,7 @@ export async function chat({ system, messages, model, maxTokens }) {
 export async function chatStream({ system, messages, model, maxTokens }, onToken) {
   if (env.LLM_PROVIDER === 'openai') {
     const openaiMessages = system ? [{ role: 'system', content: system }, ...messages] : messages
-    const stream = await withKeyRotation((client) => client.chat.completions.create({
+    const stream = await withKeyRotation(openaiClientFor, (client) => client.chat.completions.create({
       model,
       max_tokens: maxTokens,
       messages: openaiMessages,
@@ -107,12 +100,12 @@ export async function chatStream({ system, messages, model, maxTokens }, onToken
     return { text, usage }
   }
 
-  const s = anthropicClient().messages.stream({
+  const s = await withKeyRotation(anthropicClientFor, (client) => client.messages.stream({
     model,
     max_tokens: maxTokens,
     ...(system ? { system } : {}),
     messages,
-  })
+  }))
   s.on('text', onToken)
   const message = await s.finalMessage()
   return {

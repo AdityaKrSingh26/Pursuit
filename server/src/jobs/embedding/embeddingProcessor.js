@@ -8,12 +8,9 @@ export async function embeddingProcessor(job) {
     return
   }
 
-  let vector = await embed(jd.rawText.slice(0, 8000))
-
-  if (vector.length < 1536) {
-    while (vector.length < 1536) vector.push(0)
-  } else if (vector.length > 1536) {
-    vector = vector.slice(0, 1536)
+  const vector = await embed(jd.rawText.slice(0, 8000))
+  if (!Array.isArray(vector) || vector.length !== 1536) {
+    throw new Error(`Embedding dimension ${vector?.length} !== 1536`)
   }
 
   await prisma.$executeRaw`

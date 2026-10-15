@@ -1,6 +1,6 @@
 # Pursuit
 
-Full-stack job-hunt command center. Tracks applications, runs AI gap analysis + resume tailoring per JD, discovers openings from 130+ companies nightly, surfaces intelligence across your history.
+Full-stack job-hunt command center. Tracks applications, runs AI gap analysis + resume tailoring per JD, discovers openings from 271 companies on demand (12h cache), surfaces intelligence across your history.
 
 ---
 
@@ -8,7 +8,7 @@ Full-stack job-hunt command center. Tracks applications, runs AI gap analysis + 
 
 ```mermaid
 graph TB
-    subgraph Client["Client — React 18 + TypeScript + Vite"]
+    subgraph Client["Client — React 19 + TypeScript + Vite"]
         UI["Pages\nPipeline · Ledger · Funnel · Resume\nIntel · Follow-ups · Discover"]
         TQ["TanStack Query\nserver state + cache"]
         ZS["Zustand\nclient state"]
@@ -28,7 +28,7 @@ graph TB
         WE["embedding\npgvector 1536-dim"]
         WP["pdf-render\nreact-pdf / puppeteer"]
         WR["reminders\ndaily cron 08:00"]
-        WD["job-discovery\n8 sources + TinyFish fallback"]
+        WD["job-discovery\n7 sources + TinyFish fallback"]
         WS["job-scoring\nLLM relevance score per user"]
         WRU["resume-upload\nPDF text extract + LLM structuring"]
         WMV["dashboard-refresh\nREFRESH MATVIEW\nevery 15 min"]
@@ -83,16 +83,16 @@ Three on-demand analyses per application, streamed over SSE:
 | **Tailor** | Rewrites resume bullets to mirror JD language, facts stay truthful |
 
 ### Job Discovery
-8 structured sources in parallel (YC, Greenhouse, Lever, Ashby, Remotive, Adzuna, Wellfound, Arbeitnow) + TinyFish careers-page scrape fallback for companies with no ATS API. Jobs stored globally, one fetch serves all users. Each user scores relevance (0–100) against their own resume.
+On demand, not a nightly cron. Any signed-in user can hit Refresh; if the global table is older than 12 hours the worker scans once for everyone (`POST /jobs/refresh`). Seven structured sources run in parallel (YC, Greenhouse, Lever, Ashby, Remotive, Adzuna, Arbeitnow) plus an optional TinyFish careers-page fallback for companies with no ATS id. Wellfound is disabled (HTML/`__NEXT_DATA__` scrape, no official API, ToS risk). `GET /jobs` is cursor-paginated (50 per page). Each user scores relevance (0–100) against their own resume.
 
 ### Resume Upload
 Drag-and-drop a PDF on `/resume`. Server extracts text, worker sends it to the LLM to structure into typed blocks (EXPERIENCE/PROJECTS/SKILLS/EDUCATION), appended to existing blocks. Page polls and auto-refreshes on completion.
 
 ### Intelligence
-At 5+ parsed applications, the Intel page shows:
+After one structured JD, the Intel page shows:
 - **Skill demand** — most-requested skills across your JDs
 - **Gap frequency** — skills most often missing from your resume
-- **Job clusters** — k-means-style grouping by embedding similarity
+- **Job clusters** — greedy groups of embeddings with cosine ≥ 0.7 (not k-means)
 - **Similar jobs** — HNSW nearest-neighbor search per JD
 
 ### Dashboard
@@ -139,9 +139,9 @@ Shared schema. Tenant isolation is in application queries: every user-scoped rea
 | Queue | BullMQ 5 + Redis 7 |
 | LLM | OpenAI-compatible (Groq / Anthropic / OpenAI) |
 | Embeddings | GitHub Models / OpenAI text-embedding-3-small |
-| Job scraping | TinyFish API |
+| Job scraping | YC, Greenhouse, Lever, Ashby, Remotive, Adzuna, Arbeitnow; optional TinyFish fallback. Wellfound scrape disabled. |
 | PDF | @react-pdf/renderer + Cloudinary |
-| Auth | JWT (httpOnly cookie, 15 min) + rotating refresh token (7 days). Login is limited to 10 attempts / 15 min per IP and per email; register is 20 / 15 min. If Redis is down those routes return 503 (fail closed). |
+| Auth | JWT HS256 in an httpOnly cookie (15 min) + hashed rotating refresh token (7 days) + double-submit CSRF on mutating resource routes. Login/register/refresh/logout skip CSRF (`SameSite=lax`); a login CSRF cookie would need a pre-auth token. Login is limited to 10 attempts / 15 min per IP and per email; register is 20 / 15 min. If Redis is down those routes return 503 (fail closed). `GET /auth/me` is the session source; stale localStorage is treated as logged out. Same-origin only (Vite proxy in dev, API serves the SPA in prod). |
 
 ---
 
@@ -166,8 +166,8 @@ Shared schema. Tenant isolation is in application queries: every user-scoped rea
 ### Prerequisites
 - Node.js 20+
 - Docker (for Postgres + Redis)
-- A free [TinyFish](https://tinyfish.ai) API key (job discovery)
 - An LLM API key — [Groq](https://console.groq.com) is free and fast
+- Optional: [TinyFish](https://tinyfish.ai) API key for the careers-page fallback on companies without an ATS id
 
 ### 1. Clone and install
 
@@ -189,7 +189,6 @@ Fill in `.env`:
 ```bash
 # Required
 JWT_SECRET=<random 32-char string>
-JWT_REFRESH_SECRET=<different random 32-char string>
 LLM_API_KEY=<your Groq or OpenAI key>
 
 # For job discovery
@@ -260,7 +259,7 @@ Pursuit/
 │       │   ├── embedding/    # pgvector embeddings
 │       │   ├── pdf/          # PDF render
 │       │   ├── reminders/    # Daily follow-up scan
-│       │   ├── discovery/    # 8 job sources + TinyFish careers-page fallback
+│       │   ├── discovery/    # 7 job sources + optional TinyFish fallback; Wellfound off
 │       │   ├── scoring/      # Per-user LLM relevance scoring
 │       │   └── resumeUpload/ # PDF text extraction + LLM structuring
 │       ├── lib/              # db · redis · llm · cache · jwt · env
@@ -283,11 +282,10 @@ Pursuit/
 |----------|----------|-------------|
 | `DATABASE_URL` | Yes | PostgreSQL connection string |
 | `REDIS_URL` | Yes | Redis connection string |
-| `JWT_SECRET` | Yes | Access token signing key (min 16 chars) |
-| `JWT_REFRESH_SECRET` | Yes | Refresh token signing key (min 16 chars) |
+| `JWT_SECRET` | Yes | Access token signing key (min 16 chars, HS256) |
 | `LLM_PROVIDER` | Yes | `openai` or `anthropic` |
 | `LLM_API_KEY` | Yes | API key for your LLM provider |
-| `LLM_API_KEYS` | No | Comma-separated list of keys to rotate through on 429 rate limits (falls back to `LLM_API_KEY` if unset) |
+| `LLM_API_KEYS` | No | Comma-separated list of keys to rotate through on HTTP 429 for both OpenAI-compatible and Anthropic (falls back to `LLM_API_KEY`) |
 | `LLM_BASE_URL` | No | Custom base URL (e.g. Groq: `https://api.groq.com/openai/v1`) |
 | `LLM_MODEL` | No | Model name (default: `claude-sonnet-4-6`) |
 | `LLM_MAX_TOKENS` | No | Max tokens per LLM call (default: 2000) |
@@ -300,6 +298,5 @@ Pursuit/
 | `CLOUDINARY_CLOUD_NAME` | No | Cloudinary for PDF uploads |
 | `CLOUDINARY_API_KEY` | No | Cloudinary API key |
 | `CLOUDINARY_API_SECRET` | No | Cloudinary API secret |
-| `CLIENT_URL` | No | Frontend origin for CORS (default: `http://localhost:5173`) |
 | `PORT` | No | API port (default: 3001) |
 | `REMINDER_DAYS_THRESHOLD` | No | Days of silence before a follow-up reminder (default: 7) |

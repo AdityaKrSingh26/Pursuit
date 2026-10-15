@@ -1,7 +1,6 @@
 import { Router } from 'express'
 import { requireAuth } from '../../middleware/auth.js'
 import { requireCsrf } from '../../middleware/csrf.js'
-import { rateLimitLlm } from '../../middleware/rateLimitLlm.js'
 import { asyncHandler } from '../../lib/asyncHandler.js'
 import { ok } from '../../lib/response.js'
 import { initSse, sendSseEvent } from '../../lib/sse.js'
@@ -14,14 +13,29 @@ import { GapAnalysisSchema } from '../../llm/schemas/gapAnalysis.schema.js'
 import { checkPrepRateLimit } from './prepRateLimit.js'
 import { SYSTEM_PROMPT as PREP_SYSTEM_PROMPT, buildPrepPrompt, VERSION as PREP_VERSION } from '../../prompts/prep-generator.js'
 import { PrepSchema } from '../../llm/schemas/prep.schema.js'
-import { loadAppWithJd } from './analysis.access.js'
+import { loadAppWithJd, loadOwnedApplication } from './analysis.access.js'
 import { hashResumeBlocks } from '../../lib/resumeHash.js'
 
 export const analysisRouter = Router()
 analysisRouter.use(requireAuth)
 
+function startSse(res) {
+  let started = false
+  return {
+    ensure() {
+      if (!started) {
+        initSse(res)
+        started = true
+      }
+    },
+    get started() {
+      return started
+    },
+  }
+}
+
 // POST /applications/:id/analysis/gap
-analysisRouter.post('/applications/:id/analysis/gap', requireCsrf, rateLimitLlm, async (req, res, next) => {
+analysisRouter.post('/applications/:id/analysis/gap', requireCsrf, async (req, res, next) => {
   let app
   try {
     app = await loadAppWithJd(req.params.id, req.user.id)
@@ -33,7 +47,7 @@ analysisRouter.post('/applications/:id/analysis/gap', requireCsrf, rateLimitLlm,
     where: { userId: req.user.id, archivedAt: null },
   })
 
-  initSse(res)
+  const sse = startSse(res)
   const userMessage = buildGapPrompt(app.jd.structured, resumeBlocks)
 
   try {
@@ -47,9 +61,12 @@ analysisRouter.post('/applications/:id/analysis/gap', requireCsrf, rateLimitLlm,
       resumeHash: hashResumeBlocks(resumeBlocks),
       resumeVersionId: undefined,
       promptVersion: VERSION,
+      userId: req.user.id,
     }, (token) => {
+      sse.ensure()
       sendSseEvent(res, { type: 'token', content: token })
     }, (result) => {
+      sse.ensure()
       const scoreResult = computeMatchScore(
         result.matchedSkills,
         result.missingSkills,
@@ -61,13 +78,14 @@ analysisRouter.post('/applications/:id/analysis/gap', requireCsrf, rateLimitLlm,
       res.end()
     })
   } catch (err) {
+    if (!sse.started) return next(err)
     sendSseEvent(res, { type: 'error', message: err.message })
     res.end()
   }
 })
 
 // POST /applications/:id/analysis/prep
-analysisRouter.post('/applications/:id/analysis/prep', requireCsrf, rateLimitLlm, async (req, res, next) => {
+analysisRouter.post('/applications/:id/analysis/prep', requireCsrf, async (req, res, next) => {
   const limitCheck = await checkPrepRateLimit(req.user.id, req.params.id)
   if (!limitCheck.allowed) {
     return res.status(429).json({
@@ -90,7 +108,7 @@ analysisRouter.post('/applications/:id/analysis/prep', requireCsrf, rateLimitLlm
     where: { userId: req.user.id, archivedAt: null },
   })
 
-  initSse(res)
+  const sse = startSse(res)
   const userMessage = buildPrepPrompt(app.jd.structured, resumeBlocks)
 
   try {
@@ -104,14 +122,18 @@ analysisRouter.post('/applications/:id/analysis/prep', requireCsrf, rateLimitLlm
       resumeHash: hashResumeBlocks(resumeBlocks),
       resumeVersionId: undefined,
       promptVersion: PREP_VERSION,
+      userId: req.user.id,
     }, (token) => {
+      sse.ensure()
       sendSseEvent(res, { type: 'token', content: token })
     }, (result) => {
+      sse.ensure()
       sendSseEvent(res, { type: 'result', data: result })
       sendSseEvent(res, { type: 'done' })
       res.end()
     })
   } catch (err) {
+    if (!sse.started) return next(err)
     sendSseEvent(res, { type: 'error', message: err.message })
     res.end()
   }
@@ -119,13 +141,7 @@ analysisRouter.post('/applications/:id/analysis/prep', requireCsrf, rateLimitLlm
 
 // GET /applications/:id/analysis/latest
 analysisRouter.get('/applications/:id/analysis/latest', asyncHandler(async (req, res) => {
-  const app = await prisma.application.findUnique({ where: { id: req.params.id } })
-  if (!app) {
-    throw AppError.notFound('Application not found')
-  }
-  if (app.userId !== req.user.id) {
-    throw AppError.forbidden('Forbidden')
-  }
+  await loadOwnedApplication(req.params.id, req.user.id)
 
   const kind = req.query.kind || 'GAP'
   const latest = await prisma.analysis.findFirst({

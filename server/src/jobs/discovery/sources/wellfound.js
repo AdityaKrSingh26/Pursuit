@@ -1,3 +1,6 @@
+// Disabled in sources/enabled.js. No official API — this file scrapes
+// Wellfound's embedded Apollo cache out of __NEXT_DATA__, which is
+// fragile and against their terms of service.
 import { titleLooksRelevant, guessRemote } from './filters.js'
 
 const SEARCH_URLS = [

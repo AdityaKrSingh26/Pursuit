@@ -8,14 +8,10 @@ import { buildScoringPrompt } from '../../prompts/job-scoring.js'
 import { JobScoreSchema } from '../../llm/schemas/jobScore.schema.js'
 import { guessRemote } from '../../jobs/discovery/sources/filters.js'
 import { sleep } from '../../jobs/discovery/sources/util.js'
-import * as yc from '../../jobs/discovery/sources/yc.js'
-import * as greenhouse from '../../jobs/discovery/sources/greenhouse.js'
-import * as lever from '../../jobs/discovery/sources/lever.js'
-import * as ashby from '../../jobs/discovery/sources/ashby.js'
-import * as remotive from '../../jobs/discovery/sources/remotive.js'
-import * as adzuna from '../../jobs/discovery/sources/adzuna.js'
-import * as wellfound from '../../jobs/discovery/sources/wellfound.js'
-import * as arbeitnow from '../../jobs/discovery/sources/arbeitnow.js'
+import {
+  COMPANY_KEYED_SOURCES,
+  GLOBAL_SOURCES,
+} from '../../jobs/discovery/sources/enabled.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const COMPANIES_PATH = join(__dirname, '../../data/companies.json')
@@ -23,8 +19,7 @@ const TINYFISH_BASE = 'https://agent.tinyfish.ai'
 const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000
 
 // Company-keyed sources hit a company's own ATS API; global sources aggregate across companies.
-const COMPANY_KEYED_SOURCES = [greenhouse, lever, ashby]
-const GLOBAL_SOURCES = [yc, remotive, adzuna, wellfound, arbeitnow]
+// Wellfound is omitted — see sources/enabled.js.
 
 // Job link patterns for common ATS platforms
 const JOB_LINK_RE = /https?:\/\/[^\s"')>]+(?:lever\.co|greenhouse\.io|workable\.com|smartrecruiters\.com|ashbyhq\.com|jobs\.[^\s"')>]+|careers\.[^\s"')>]+)[^\s"')>]*/gi
@@ -46,29 +41,43 @@ export async function getLastScanAt() {
   return latest?.fetchedAt ?? null
 }
 
-export async function listJobs(userId) {
-  const jobs = await prisma.discoveredJob.findMany({
-    orderBy: { fetchedAt: 'desc' },
+export async function listJobs(userId, filters = {}) {
+  const limit = filters.limit ?? 50
+  const query = {
+    orderBy: [{ fetchedAt: 'desc' }, { id: 'desc' }],
+    take: limit,
     include: {
       scores: {
         where: { userId },
         select: { score: true, scoreReason: true, scoredAt: true },
       },
     },
-  })
+  }
+  if (filters.cursor) {
+    query.cursor = { id: filters.cursor }
+    query.skip = 1
+  }
 
-  return jobs.map((j) => ({
+  const [rows, total] = await Promise.all([
+    prisma.discoveredJob.findMany(query),
+    prisma.discoveredJob.count(),
+  ])
+
+  const jobs = rows.map((j) => ({
     id: j.id,
     company: j.company,
     title: j.title,
     url: j.url,
     location: j.location,
     fetchedAt: j.fetchedAt,
-    techStack: j.techStack,           // content property — on DiscoveredJob
+    techStack: j.techStack,
     score: j.scores[0]?.score ?? null,
     scoreReason: j.scores[0]?.scoreReason ?? null,
     scoredAt: j.scores[0]?.scoredAt ?? null,
   }))
+
+  const nextCursor = rows.length === limit ? rows[rows.length - 1].id : null
+  return { jobs, nextCursor, total }
 }
 
 async function tinyfishFetch(url) {

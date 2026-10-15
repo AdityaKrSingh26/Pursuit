@@ -3,7 +3,8 @@ import multer from 'multer'
 import { z } from 'zod'
 import { requireAuth } from '../../middleware/auth.js'
 import { requireCsrf } from '../../middleware/csrf.js'
-import { rateLimitLlm } from '../../middleware/rateLimitLlm.js'
+import { isPdfBuffer } from '../../lib/pdfMagic.js'
+import { loadAppWithJd } from '../analysis/analysis.access.js'
 import { asyncHandler } from '../../lib/asyncHandler.js'
 import { validateBody } from '../../lib/validate.js'
 import { ok, created, noContent } from '../../lib/response.js'
@@ -88,6 +89,7 @@ resumeRouter.post('/resume/blocks/:id/restore', requireCsrf, asyncHandler(async 
 
 resumeRouter.post('/resume/upload', requireCsrf, upload.single('file'), asyncHandler(async (req, res) => {
   if (!req.file) throw AppError.badRequest('No PDF file uploaded')
+  if (!isPdfBuffer(req.file.buffer)) throw AppError.badRequest('File is not a PDF')
 
   const rawText = (await extractPdfText(req.file.buffer)).trim()
   if (!rawText) throw AppError.badRequest('Could not extract any text from that PDF')
@@ -116,22 +118,10 @@ resumeRouter.get('/resume/uploads/:id', asyncHandler(async (req, res) => {
 }))
 
 // POST /applications/:id/tailor
-resumeRouter.post('/applications/:id/tailor', requireCsrf, rateLimitLlm, async (req, res, next) => {
+resumeRouter.post('/applications/:id/tailor', requireCsrf, async (req, res, next) => {
   let app
   try {
-    app = await prisma.application.findUnique({
-      where: { id: req.params.id },
-      include: { jd: true },
-    })
-    if (!app) {
-      throw AppError.notFound('Application not found')
-    }
-    if (app.userId !== req.user.id) {
-      throw AppError.forbidden('Forbidden')
-    }
-    if (!app.jd || app.jd.parseStatus !== 'DONE') {
-      throw AppError.badRequest('Job description not parsed yet')
-    }
+    app = await loadAppWithJd(req.params.id, req.user.id)
   } catch (err) {
     return next(err)
   }
@@ -141,7 +131,13 @@ resumeRouter.post('/applications/:id/tailor', requireCsrf, rateLimitLlm, async (
     orderBy: [{ section: 'asc' }, { orderDefault: 'asc' }],
   })
 
-  initSse(res)
+  let sseStarted = false
+  const ensureSse = () => {
+    if (!sseStarted) {
+      initSse(res)
+      sseStarted = true
+    }
+  }
   const userMessage = buildTailoringPrompt(app.jd.structured, resumeBlocks)
 
   try {
@@ -155,14 +151,18 @@ resumeRouter.post('/applications/:id/tailor', requireCsrf, rateLimitLlm, async (
       resumeHash: hashResumeBlocks(resumeBlocks),
       resumeVersionId: undefined,
       promptVersion: VERSION,
+      userId: req.user.id,
     }, (token) => {
+      ensureSse()
       sendSseEvent(res, { type: 'token', content: token })
     }, (result) => {
+      ensureSse()
       sendSseEvent(res, { type: 'result', data: result })
       sendSseEvent(res, { type: 'done' })
       res.end()
     })
   } catch (err) {
+    if (!sseStarted) return next(err)
     sendSseEvent(res, { type: 'error', message: err.message })
     res.end()
   }

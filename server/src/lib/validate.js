@@ -17,7 +17,13 @@ export function validateQuery(schema) {
     if (!parsed.success) {
       return next(AppError.badRequest(parsed.error.issues[0].message))
     }
-    req.query = parsed.data
+    // Express 5 exposes req.query as a getter-only property.
+    Object.defineProperty(req, 'query', {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: parsed.data,
+    })
     next()
   }
 }

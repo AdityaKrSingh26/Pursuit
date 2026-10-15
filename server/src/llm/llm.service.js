@@ -1,6 +1,8 @@
 import { env } from '../lib/env.js'
 import { prisma } from '../lib/db.js'
 import { chat, chatStream } from '../lib/llm.js'
+import { parseJsonFromLlm } from '../lib/llmJson.js'
+import { consumeLlmQuota } from '../middleware/rateLimitLlm.js'
 
 export function computeCost(model, usage) {
   const input = usage.input_tokens || 0
@@ -40,12 +42,7 @@ async function _checkCache({ applicationId, kind, jdHash, resumeHash, resumeVers
 
 // Returns { data, usage }. usage is from the retry response if a retry occurred, otherwise null.
 async function _validateWithRetry(responseText, schema, systemPrompt, userMessage) {
-  let parsed
-  try {
-    parsed = JSON.parse(responseText)
-  } catch {
-    parsed = null
-  }
+  const parsed = parseJsonFromLlm(responseText)
 
   let result = schema.safeParse(parsed)
   if (result.success) {
@@ -65,12 +62,7 @@ async function _validateWithRetry(responseText, schema, systemPrompt, userMessag
     maxTokens: env.LLM_MAX_TOKENS,
   })
 
-  let retryParsed
-  try {
-    retryParsed = JSON.parse(retry.text)
-  } catch {
-    retryParsed = null
-  }
+  const retryParsed = parseJsonFromLlm(retry.text)
 
   result = schema.safeParse(retryParsed)
   if (!result.success) {
@@ -99,12 +91,16 @@ async function _writeAnalysis(params, validatedData, usage) {
   })
 }
 
-export async function callLlm({ systemPrompt, userMessage, schema, persist = true, ...params }) {
+export async function callLlm({ systemPrompt, userMessage, schema, persist = true, userId, ...params }) {
   if (persist) {
     const cached = await _checkCache(params, schema)
     if (cached !== null) {
       return cached
     }
+  }
+
+  if (userId) {
+    await consumeLlmQuota(userId)
   }
 
   const response = await chat({
@@ -127,13 +123,17 @@ export async function callLlm({ systemPrompt, userMessage, schema, persist = tru
   return validatedData
 }
 
-export async function streamLlm({ systemPrompt, userMessage, schema, persist = true, ...params }, onToken, onDone) {
+export async function streamLlm({ systemPrompt, userMessage, schema, persist = true, userId, ...params }, onToken, onDone) {
   if (persist) {
     const cached = await _checkCache(params, schema)
     if (cached !== null) {
       onDone(cached)
       return
     }
+  }
+
+  if (userId) {
+    await consumeLlmQuota(userId)
   }
 
   const response = await chatStream(

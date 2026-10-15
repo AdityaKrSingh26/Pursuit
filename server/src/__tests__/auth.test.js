@@ -138,6 +138,21 @@ describe('POST /api/v1/auth/refresh', () => {
     expect(newAccess?.split('.').length).toBe(3)
   })
 
+  it('rotates the csrfToken cookie', async () => {
+    const loginRes = await register()
+    const csrf1 = extractCookie(loginRes, 'csrfToken')
+    const refreshToken = extractCookie(loginRes, 'refreshToken')
+
+    const res = await request(app)
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', `refreshToken=${refreshToken}`)
+
+    expect(res.status).toBe(200)
+    const csrf2 = extractCookie(res, 'csrfToken')
+    expect(csrf2).toBeDefined()
+    expect(csrf2).not.toBe(csrf1)
+  })
+
   it('returns 401 on missing refresh token', async () => {
     const res = await request(app).post('/api/v1/auth/refresh')
     expect(res.status).toBe(401)
@@ -164,14 +179,37 @@ describe('POST /api/v1/auth/refresh', () => {
 
 // Logout
 
+describe('GET /api/v1/auth/me', () => {
+  it('returns the current user when the access cookie is valid', async () => {
+    const loginRes = await register()
+    const accessToken = extractCookie(loginRes, 'accessToken')
+    const res = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Cookie', `accessToken=${accessToken}`)
+    expect(res.status).toBe(200)
+    expect(res.body.data.email).toBe(VALID_USER.email)
+    expect(res.body.data.passwordHash).toBeUndefined()
+  })
+
+  it('returns 401 without a cookie', async () => {
+    const res = await request(app).get('/api/v1/auth/me')
+    expect(res.status).toBe(401)
+  })
+})
+
 describe('POST /api/v1/auth/logout', () => {
-  it('clears cookies and subsequent refresh returns 401', async () => {
+  it('clears cookies with the same path and sameSite as set, and subsequent refresh returns 401', async () => {
     const loginRes = await register()
     const refreshToken = extractCookie(loginRes, 'refreshToken')
 
-    await request(app)
+    const logoutRes = await request(app)
       .post('/api/v1/auth/logout')
       .set('Cookie', `refreshToken=${refreshToken}`)
+
+    const raw = logoutRes.headers['set-cookie']
+    const cookies = Array.isArray(raw) ? raw : raw ? [raw] : []
+    expect(cookies.some((c) => c.toLowerCase().includes('path=/'))).toBe(true)
+    expect(cookies.some((c) => c.toLowerCase().includes('samesite=lax'))).toBe(true)
 
     const res = await request(app)
       .post('/api/v1/auth/refresh')

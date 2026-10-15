@@ -78,7 +78,7 @@ function JobRow({ job }: { job: DiscoveredJob }) {
 }
 
 export default function JobsPage() {
-  const { data, isLoading } = useDiscoveredJobs()
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useDiscoveredJobs()
   const { data: scanStatus } = useJobScanStatus()
   const { data: scoreStatus } = useJobScoreStatus()
   const refresh = useRefreshJobs()
@@ -95,7 +95,8 @@ export default function JobsPage() {
     }
   }, [scanStatus?.status, refresh.isSuccess])
 
-  const jobs = data?.jobs ?? []
+  const jobs = data?.pages.flatMap((p) => p.jobs) ?? []
+  const total = data?.pages[0]?.total ?? 0
   const sortedJobs = [...jobs].sort((a, b) => {
     if (a.score !== null && b.score !== null) return b.score - a.score
     if (a.score !== null) return -1
@@ -104,7 +105,7 @@ export default function JobsPage() {
   })
 
   const unscoredCount = jobs.filter((j) => j.score === null).length
-  const lastScanAt = data?.lastScanAt ?? scanStatus?.lastScanAt
+  const lastScanAt = data?.pages[0]?.lastScanAt ?? scanStatus?.lastScanAt
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-paper">
@@ -115,7 +116,7 @@ export default function JobsPage() {
             <h1 className="font-display text-2xl font-semibold text-ink">Discover</h1>
             <p className="label mt-1">
               {lastScanAt
-                ? `last scanned ${timeAgo(lastScanAt)} · ${data?.total ?? 0} jobs`
+                ? `last scanned ${timeAgo(lastScanAt)} · ${total} jobs`
                 : 'no scan yet'}
             </p>
           </div>
@@ -158,11 +159,20 @@ export default function JobsPage() {
           <div className="flex h-64 flex-col items-center justify-center gap-3 text-center">
             <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink-faint">No jobs discovered yet</p>
             <p className="font-sans text-[13px] text-ink-soft">
-              Click <span className="font-mono text-[11px] uppercase tracking-wider">↻ Fetch Jobs</span> to scan 130+ companies
+              Click <span className="font-mono text-[11px] uppercase tracking-wider">↻ Fetch Jobs</span> to scan 271 companies
             </p>
           </div>
         ) : (
-          sortedJobs.map((job) => <JobRow key={job.id} job={job} />)
+          <>
+            {sortedJobs.map((job) => <JobRow key={job.id} job={job} />)}
+            {hasNextPage && (
+              <div className="flex justify-center py-6">
+                <Button onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
+                  {isFetchingNextPage ? 'Loading…' : 'Load more ↓'}
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

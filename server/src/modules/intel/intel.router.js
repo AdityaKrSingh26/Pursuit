@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { requireAuth } from '../../middleware/auth.js'
 import { asyncHandler } from '../../lib/asyncHandler.js'
 import { ok } from '../../lib/response.js'
-import { prisma } from '../../lib/db.js'
+import { loadOwnedApplication } from '../analysis/analysis.access.js'
 import * as intelService from './intel.service.js'
 
 export const intelRouter = Router()
@@ -21,11 +21,8 @@ intelRouter.get('/intel/clusters', asyncHandler(async (req, res) => {
 }))
 
 intelRouter.get('/applications/:id/similar', asyncHandler(async (req, res) => {
-  const app = await prisma.application.findUnique({
-    where: { id: req.params.id },
-    select: { jdId: true },
-  })
-  if (!app || !app.jdId) {
+  const app = await loadOwnedApplication(req.params.id, req.user.id)
+  if (!app.jdId) {
     return ok(res, [])
   }
   ok(res, await intelService.getSimilarJobs(req.user.id, app.jdId))
