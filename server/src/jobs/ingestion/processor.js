@@ -30,16 +30,18 @@ export async function ingestionProcessor(job) {
 
     const jdHash = computeJdHash(rawText)
 
-    // Idempotency: check for existing entry with same hash
+    // Global dedup: jdHash is unique. A pending row cannot take a hash
+    // another JD already owns — retarget applications and drop the pending row.
     const existing = await prisma.jobDescription.findFirst({
-      where: { userId: jd.userId, jdHash, id: { not: jdId } },
+      where: { jdHash, id: { not: jdId } },
     })
     if (existing) {
-      await prisma.jobDescription.update({
-        where: { id: jdId },
-        data: { parseStatus: 'DONE', jdHash, structured: existing.structured },
+      await prisma.application.updateMany({
+        where: { jdId },
+        data: { jdId: existing.id },
       })
-      await embeddingQueue.add('embed', { jdId })
+      await prisma.jobDescription.delete({ where: { id: jdId } })
+      await embeddingQueue.add('embed', { jdId: existing.id })
       return
     }
 

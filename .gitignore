@@ -81,9 +81,12 @@ uploads/
 Thumbs.db
 Thumbs.db:encryptable
 ehthumbs.db
+ehthumbs_vista.db
 Desktop.ini
 $RECYCLE.BIN/
 *.lnk
+DumpStack.log.tmp
+*.stackdump
 
 # ── OS — Linux ───────────────────────────────────────────────────────────────────
 .fuse_hidden*

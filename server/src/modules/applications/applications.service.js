@@ -235,8 +235,8 @@ export async function listApplications(userId, filters) {
 }
 
 export async function getApplication(userId, id) {
-  const app = await prisma.application.findUnique({
-    where: { id, deletedAt: null },
+  const app = await prisma.application.findFirst({
+    where: { id, userId, deletedAt: null },
     include: {
       stageEvents: {
         orderBy: { at: 'asc' },
@@ -247,9 +247,6 @@ export async function getApplication(userId, id) {
 
   if (!app) {
     throw AppError.notFound('Application not found')
-  }
-  if (app.userId !== userId) {
-    throw AppError.forbidden('Forbidden')
   }
 
   return app

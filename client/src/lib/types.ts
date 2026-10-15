@@ -28,7 +28,6 @@ export interface JdStructured {
 
 export interface JobDescription {
   id: string
-  userId: string
   sourceUrl: string | null
   rawText: string
   jdHash: string
