@@ -20,19 +20,27 @@ export async function pdfProcessor(job) {
     ? version.blocksSnapshot
     : JSON.parse(version.blocksSnapshot)
 
-  let buffer
   try {
-    buffer = await renderResumePdf(blocks, { email: user.email })
+    let buffer
+    try {
+      buffer = await renderResumePdf(blocks, { email: user.email })
+    } catch (err) {
+      console.warn('[pdfProcessor] Primary renderer failed, trying fallback:', err.message)
+      buffer = await renderResumePdfFallback(blocks, { email: user.email })
+    }
+
+    const pdfKey = `resumes/${userId}/${resumeVersionId}.pdf`
+    await uploadBuffer(pdfKey, buffer, 'application/pdf')
+
+    await prisma.resumeVersion.update({
+      where: { id: resumeVersionId },
+      data: { pdfKey, renderStatus: 'DONE', renderError: null },
+    })
   } catch (err) {
-    console.warn('[pdfProcessor] Primary renderer failed, trying fallback:', err.message)
-    buffer = await renderResumePdfFallback(blocks, { email: user.email })
+    await prisma.resumeVersion.update({
+      where: { id: resumeVersionId },
+      data: { renderStatus: 'FAILED', renderError: err.message },
+    })
+    throw err
   }
-
-  const pdfKey = `resumes/${userId}/${resumeVersionId}.pdf`
-  await uploadBuffer(pdfKey, buffer, 'application/pdf')
-
-  await prisma.resumeVersion.update({
-    where: { id: resumeVersionId },
-    data: { pdfKey },
-  })
 }

@@ -14,26 +14,10 @@ import { GapAnalysisSchema } from '../../llm/schemas/gapAnalysis.schema.js'
 import { checkPrepRateLimit } from './prepRateLimit.js'
 import { SYSTEM_PROMPT as PREP_SYSTEM_PROMPT, buildPrepPrompt, VERSION as PREP_VERSION } from '../../prompts/prep-generator.js'
 import { PrepSchema } from '../../llm/schemas/prep.schema.js'
+import { loadAppWithJd } from './analysis.access.js'
 
 export const analysisRouter = Router()
 analysisRouter.use(requireAuth)
-
-async function loadAppWithJd(appId, userId) {
-  const app = await prisma.application.findUnique({
-    where: { id: appId },
-    include: { jd: true },
-  })
-  if (!app) {
-    throw AppError.notFound('Application not found')
-  }
-  if (app.userId !== userId) {
-    throw AppError.forbidden('Forbidden')
-  }
-  if (!app.jd || app.jd.parseStatus !== 'DONE') {
-    throw AppError.badRequest('Job description not parsed yet')
-  }
-  return app
-}
 
 // POST /applications/:id/analysis/gap
 analysisRouter.post('/applications/:id/analysis/gap', requireCsrf, rateLimitLlm, async (req, res, next) => {

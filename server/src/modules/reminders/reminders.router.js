@@ -4,7 +4,7 @@ import { requireCsrf } from '../../middleware/csrf.js'
 import { asyncHandler } from '../../lib/asyncHandler.js'
 import { ok } from '../../lib/response.js'
 import { prisma } from '../../lib/db.js'
-import { AppError } from '../../lib/errors.js'
+import { dismissReminder } from './reminders.service.js'
 
 export const remindersRouter = Router()
 remindersRouter.use(requireAuth)
@@ -51,21 +51,6 @@ remindersRouter.get('/reminders/pending', asyncHandler(async (req, res) => {
 }))
 
 remindersRouter.post('/reminders/:id/dismiss', requireCsrf, asyncHandler(async (req, res) => {
-  const reminder = await prisma.reminder.findUnique({
-    where: { id: req.params.id },
-    include: { application: true },
-  })
-  if (!reminder) {
-    throw AppError.notFound('Reminder not found')
-  }
-  if (reminder.application.userId !== req.user.id) {
-    throw AppError.forbidden('Forbidden')
-  }
-
-  await prisma.reminder.update({
-    where: { id: reminder.id },
-    data: { dismissedAt: new Date() },
-  })
-
+  await dismissReminder(req.user.id, req.params.id)
   ok(res, { ok: true })
 }))

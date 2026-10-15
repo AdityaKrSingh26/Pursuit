@@ -25,4 +25,12 @@ export class AppError extends Error {
   static notFound(message = 'Not found') {
     return new AppError(message, 404, 'NOT_FOUND')
   }
+
+  static tooManyRequests(message = 'Too many attempts. Try again later.') {
+    return new AppError(message, 429, 'RATE_LIMIT')
+  }
+
+  static serviceUnavailable(message = 'Service temporarily unavailable') {
+    return new AppError(message, 503, 'SERVICE_UNAVAILABLE')
+  }
 }

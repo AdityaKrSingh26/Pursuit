@@ -21,8 +21,7 @@ function getCloudinary() {
 export async function uploadBuffer(key, buffer, contentType) {
   const client = getCloudinary()
   if (!client) {
-    console.warn('[storage] Cloudinary not configured, skipping upload')
-    return
+    throw new Error('Cloudinary not configured')
   }
 
   return new Promise((resolve, reject) => {
@@ -30,6 +29,7 @@ export async function uploadBuffer(key, buffer, contentType) {
       {
         public_id: key,
         resource_type: 'raw',
+        type: 'authenticated',
       },
       (error, result) => {
         if (error) {
@@ -46,13 +46,15 @@ export async function uploadBuffer(key, buffer, contentType) {
 export async function getSignedUrl(key, expirySeconds = 300) {
   const client = getCloudinary()
   if (!client) {
-    console.warn('[storage] Cloudinary not configured, returning null URL')
-    return null
+    throw new Error('Cloudinary not configured')
   }
 
-  // Generate and return the secure delivery URL for the raw asset
+  const expires_at = Math.floor(Date.now() / 1000) + expirySeconds
   return client.url(key, {
     secure: true,
     resource_type: 'raw',
+    type: 'authenticated',
+    sign_url: true,
+    expires_at,
   })
 }

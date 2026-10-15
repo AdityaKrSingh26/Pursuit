@@ -19,6 +19,7 @@ export async function fetchAndExtract(url) {
       const response = await axios.get(url, {
         timeout: 10000,
         maxContentLength: 5000000,
+        maxRedirects: 0,
         responseType: 'text',
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Pursuit/1.0)' },
       })

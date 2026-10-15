@@ -15,7 +15,7 @@ graph TB
 
     subgraph API["API Server — Express 5 + Node.js"]
         direction TB
-        MW["Middleware\nJWT verify → set RLS context → CSRF"]
+        MW["Middleware\nJWT verify → CSRF"]
         subgraph Modules["Feature Modules"]
             M1["applications"]
             M2["resume + analysis"]
@@ -36,9 +36,9 @@ graph TB
     end
 
     subgraph PG["PostgreSQL 16 + pgvector"]
-        PG1["Applications · StageEvents\nAnalyses · Reminders\n(RLS enforced)"]
+        PG1["Applications · StageEvents\nAnalyses · Reminders\n(userId in app queries)"]
         PG2["JobDescription\ncontent-addressed global\nHNSW embedding index"]
-        PG3["ResumeBlocks · ResumeVersions\n· ResumeUpload\n(RLS enforced)"]
+        PG3["ResumeBlocks · ResumeVersions\n· ResumeUpload\n(userId in app queries)"]
         PG4["DiscoveredJob · UserJobScore\n(global + per-user scores)"]
         PG5["mv_user_funnel\nmaterialized view"]
     end
@@ -76,8 +76,8 @@ sequenceDiagram
     participant L as LLM API
 
     B->>A: POST /api/v1/applications (httpOnly cookie + CSRF token)
-    A->>A: verify JWT → set app.current_user_id via set_config()
-    A->>DB: INSERT Application (RLS policy checks userId)
+    A->>A: verify JWT → req.user.id
+    A->>DB: INSERT Application (userId from JWT)
     A->>DB: INSERT StageEvent (SAVED)
     A->>Q: enqueue jd-ingestion job
     A->>Q: redis.del(dashboard:funnel:{userId})
@@ -156,29 +156,22 @@ flowchart TD
 flowchart LR
     subgraph Request["Every authenticated request"]
         JWT["1. Verify JWT\n(httpOnly cookie)"]
-        CTX["2. set_config\napp.current_user_id = userId"]
-        QUERY["3. Application query\nWHERE userId = ?"]
+        QUERY["2. Query with WHERE userId = JWT sub"]
     end
 
-    subgraph DB["PostgreSQL RLS"]
-        POL["tenant_isolation policy\nUSING userId =\ncurrent_setting(app.current_user_id)"]
-    end
-
-    JWT --> CTX --> QUERY
-    QUERY -->|checked against| POL
-
-    note1["If app code forgets WHERE userId:\nRLS policy blocks the query.\nDefense-in-depth."]
+    JWT --> QUERY
 ```
+
+Tenant isolation is application-layer: every user-scoped query filters on `userId` from the access token. A missed filter is a real IDOR; coverage lives in `server/src/__tests__/idor.test.js` and the Wave 0 application/JD access tests. Postgres RLS is not used.
 
 **Shared vs global tables:**
 
-| Table | Scoped to | RLS |
-|-------|-----------|-----|
-| Application, ResumeBlock, etc. | Per user | Enabled |
-| StageEvent, Analysis, Reminder | Via Application join | Enabled |
-| JobDescription | Global (content-addressed) | None |
-| DiscoveredJob | Global (shared scrape) | None |
-| UserJobScore | Per user | Enabled |
+| Table | Scoped to | Isolation |
+|-------|-----------|-----------|
+| Application, ResumeBlock, ResumeUpload, ResumeVersion, UserJobScore | Per user | `WHERE userId = ?` |
+| StageEvent, Analysis, Reminder | Via Application | Owner check on parent application |
+| JobDescription | Global (content-addressed) | None (shared) |
+| DiscoveredJob | Global (shared scrape) | None (shared); scores are per-user |
 
 ---
 
@@ -247,7 +240,7 @@ flowchart TB
 | Decision | Choice | Alternative considered |
 |----------|--------|----------------------|
 | Service shape | Modular monolith, two processes (API + worker) | Microservices: no benefit at this scale, large ops overhead |
-| Multi-tenancy | Shared schema + PostgreSQL RLS | Schema-per-tenant: 10× migration complexity; DB-per-tenant: cost-prohibitive |
+| Multi-tenancy | Shared schema + `userId` filters in app queries | Schema-per-tenant: 10× migration complexity; DB-per-tenant: cost-prohibitive |
 | JD storage | Global content-addressed by jdHash | Per-user: duplicates LLM parse and embedding for shared jobs |
 | FTS | Generated tsvector column + GIN index | Query-time `to_tsvector()`: O(n) full scan, no index |
 | ANN search | HNSW | IVFFlat: requires upfront clustering, poor for dynamic inserts |

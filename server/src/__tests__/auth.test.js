@@ -1,4 +1,14 @@
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest'
+
+vi.mock('../lib/redis.js', () => ({
+  redis: {
+    eval: vi.fn().mockResolvedValue(1),
+    get: vi.fn(),
+    setex: vi.fn(),
+    del: vi.fn(),
+  },
+}))
+
 import request from 'supertest'
 import { app } from '../index.js'
 import { prisma } from '../lib/db.js'

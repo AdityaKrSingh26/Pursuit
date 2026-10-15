@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '../../components/ui'
 import { api, ApiError } from '../../lib/api'
 import { streamAnalysis } from '../../lib/sse'
 import type { ResumeBlock, TailoringProposal, TailoringResult } from '../../lib/types'
+import { decidePdfPoll } from '../../lib/pdfPoll'
 
 interface Decision {
   blockId: string
@@ -39,6 +40,15 @@ export default function TailoringDiffView({
   const [pdfStatus, setPdfStatus] = useState<'idle' | 'creating' | 'polling' | 'ready' | 'error'>('idle')
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  function stopPoll() {
+    if (pollRef.current) {
+      clearInterval(pollRef.current)
+      pollRef.current = null
+    }
+  }
+
+  useEffect(() => () => stopPoll(), [])
 
   async function runTailoring() {
     setProposals([])
@@ -99,12 +109,36 @@ export default function TailoringDiffView({
       )
       onVersionCreated?.(resumeVersionId)
       setPdfStatus('polling')
+      const started = Date.now()
       pollRef.current = setInterval(async () => {
-        const res = await api<{ url?: string; status?: string }>(`/resume-versions/${resumeVersionId}/pdf`)
-        if (res.url) {
-          setPdfUrl(res.url)
-          setPdfStatus('ready')
-          if (pollRef.current) clearInterval(pollRef.current)
+        const elapsed = Date.now() - started
+        try {
+          const res = await api<{ url?: string; status?: string }>(`/resume-versions/${resumeVersionId}/pdf`)
+          const decision = decidePdfPoll(res, elapsed)
+          if (decision === 'ready' && res.url) {
+            setPdfUrl(res.url)
+            setPdfStatus('ready')
+            stopPoll()
+          } else if (decision === 'failed') {
+            setPdfStatus('error')
+            setError('PDF render failed.')
+            stopPoll()
+          } else if (decision === 'timeout') {
+            setPdfStatus('error')
+            setError('PDF render timed out.')
+            stopPoll()
+          }
+        } catch (pollErr) {
+          const decision = decidePdfPoll({ error: true }, elapsed)
+          setPdfStatus('error')
+          setError(
+            decision === 'timeout'
+              ? 'PDF render timed out.'
+              : pollErr instanceof ApiError
+                ? pollErr.message
+                : 'PDF generation failed.',
+          )
+          stopPoll()
         }
       }, 2000)
     } catch (err) {

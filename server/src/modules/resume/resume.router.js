@@ -15,6 +15,8 @@ import { SYSTEM_PROMPT, buildTailoringPrompt, VERSION } from '../../prompts/tail
 import { TailoringSchema } from '../../llm/schemas/tailoring.schema.js'
 import { pdfQueue } from '../../jobs/pdf/pdf.queue.js'
 import { getSignedUrl } from '../../lib/storage.js'
+import { resumePdfState } from './resumePdf.js'
+import { getResumeUploadForUser, getResumeVersionForUser } from './resumeAccess.js'
 import { extractPdfText } from '../../lib/pdfExtract.js'
 import { resumeUploadQueue } from '../../jobs/resumeUpload/resumeUpload.queue.js'
 import * as resumeService from './resumeBlocks.service.js'
@@ -98,9 +100,7 @@ resumeRouter.post('/resume/upload', requireCsrf, upload.single('file'), asyncHan
 }))
 
 resumeRouter.get('/resume/uploads/:id', asyncHandler(async (req, res) => {
-  const record = await prisma.resumeUpload.findUnique({ where: { id: req.params.id } })
-  if (!record) throw AppError.notFound('Upload not found')
-  if (record.userId !== req.user.id) throw AppError.forbidden('Forbidden')
+  const record = await getResumeUploadForUser(req.user.id, req.params.id)
   ok(res, {
     id: record.id,
     status: record.status,
@@ -187,18 +187,16 @@ resumeRouter.post('/applications/:id/resume-version', requireCsrf, validateBody(
 }))
 
 resumeRouter.get('/resume-versions/:id/pdf', asyncHandler(async (req, res) => {
-  const version = await prisma.resumeVersion.findUnique({ where: { id: req.params.id } })
-  if (!version) {
-    throw AppError.notFound('Resume version not found')
-  }
-  if (version.userId !== req.user.id) {
-    throw AppError.forbidden('Forbidden')
-  }
+  const version = await getResumeVersionForUser(req.user.id, req.params.id)
 
-  if (!version.pdfKey) {
+  const state = resumePdfState(version)
+  if (state.kind === 'failed') {
+    throw AppError.badRequest(state.error)
+  }
+  if (state.kind === 'rendering') {
     return res.status(202).json({ ok: true, data: { status: 'rendering' } })
   }
 
-  const url = await getSignedUrl(version.pdfKey, 300)
-  ok(res, { url })
+  const url = await getSignedUrl(state.pdfKey, 300)
+  ok(res, { url, status: 'done' })
 }))

@@ -9,6 +9,7 @@ import { validateBody } from '../../lib/validate.js'
 import { ok, created } from '../../lib/response.js'
 import { generateCsrfToken } from '../../middleware/csrf.js'
 import { createRefreshToken, rotateRefreshToken, revokeFamily } from './refreshToken.service.js'
+import { rateLimitLogin, rateLimitRegister } from '../../middleware/rateLimitAuth.js'
 
 export const authRouter = Router()
 
@@ -40,7 +41,7 @@ function setAuthCookies(res, accessToken, refreshToken) {
   })
 }
 
-authRouter.post('/register', validateBody(credentialsSchema), asyncHandler(async (req, res) => {
+authRouter.post('/register', validateBody(credentialsSchema), rateLimitRegister, asyncHandler(async (req, res) => {
   const { email, password } = req.body
   const existing = await prisma.user.findUnique({ where: { email } })
   if (existing) {
@@ -55,7 +56,7 @@ authRouter.post('/register', validateBody(credentialsSchema), asyncHandler(async
   created(res, { id: user.id, email: user.email })
 }))
 
-authRouter.post('/login', validateBody(credentialsSchema), asyncHandler(async (req, res) => {
+authRouter.post('/login', validateBody(credentialsSchema), rateLimitLogin, asyncHandler(async (req, res) => {
   const { email, password } = req.body
   // Always 401, never reveal whether the email exists
   const user = await prisma.user.findUnique({ where: { email } })

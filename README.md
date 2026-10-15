@@ -19,10 +19,8 @@ graph TB
     subgraph API["API Server — Express 5 + Node.js"]
         direction TB
         AUTH["auth middleware\nJWT httpOnly cookie\n+ CSRF token"]
-        RLS["PostgreSQL RLS\ntenant_isolation policy\nset_config per request"]
         MODS["Modules\napplications · resume · analysis\nintel · dashboard · reminders · jobs"]
-        AUTH --> RLS
-        RLS --> MODS
+        AUTH --> MODS
     end
 
     subgraph Worker["Background Worker — BullMQ"]
@@ -38,10 +36,10 @@ graph TB
 
     subgraph DB["PostgreSQL 16 + pgvector"]
         direction TB
-        PG_APP["Application\nsoft-delete · FTS generated col\nGIN index · RLS"]
-        PG_JD["JobDescription\ncontent-addressed global\nHNSW embedding index\nRLS"]
-        PG_RB["ResumeBlock\nstructured JSON content\nRLS"]
-        PG_DJ["DiscoveredJob\nglobal shared · no RLS"]
+        PG_APP["Application\nsoft-delete · FTS generated col\nGIN index · userId scoped"]
+        PG_JD["JobDescription\ncontent-addressed global\nHNSW embedding index"]
+        PG_RB["ResumeBlock\nstructured JSON content\nuserId scoped"]
+        PG_DJ["DiscoveredJob\nglobal shared"]
         PG_MV["mv_user_funnel\nmaterialized view"]
         PG_APP --- PG_JD
         PG_JD --- PG_MV
@@ -105,14 +103,7 @@ Funnel conversion, weekly velocity, LLM cost tracking. Stage counts from a mater
 ## Data Architecture
 
 ### Multi-Tenancy
-Shared schema + PostgreSQL Row Level Security as defense-in-depth. Every user-scoped table has a policy:
-
-```sql
-CREATE POLICY tenant_isolation ON "Application"
-  USING ("userId" = current_setting('app.current_user_id', true));
-```
-
-`requireAuth` sets this config var per request after JWT verification — a missing `WHERE userId` in app code still can't leak another tenant's rows.
+Shared schema. Tenant isolation is in application queries: every user-scoped read/write includes `userId` from the JWT (`WHERE userId = ?` or an equivalent owner check). IDOR tests cover application, JD, resume, analysis, and reminder access. Postgres RLS is not used.
 
 ### Content-Addressed Job Descriptions
 `JobDescription` has no `userId`. `jdHash` (SHA-256 of normalized text) is the global key — two users applying to the same job share one row, one parse, one embedding. Cost scales with unique postings, not `users × jobs`.
@@ -150,7 +141,7 @@ CREATE POLICY tenant_isolation ON "Application"
 | Embeddings | GitHub Models / OpenAI text-embedding-3-small |
 | Job scraping | TinyFish API |
 | PDF | @react-pdf/renderer + Cloudinary |
-| Auth | JWT (httpOnly cookie, 15 min) + rotating refresh token (7 days) |
+| Auth | JWT (httpOnly cookie, 15 min) + rotating refresh token (7 days). Login is limited to 10 attempts / 15 min per IP and per email; register is 20 / 15 min. If Redis is down those routes return 503 (fail closed). |
 
 ---
 
@@ -160,7 +151,7 @@ CREATE POLICY tenant_isolation ON "Application"
 |----------|--------|-------------------------------|
 | Service shape | Modular monolith, two processes (API + worker) | Microservices: zero benefit at this scale, large ops overhead |
 | Database | PostgreSQL + pgvector + FTS | MongoDB: data is genuinely relational; separate vector DB: extra service for <10k vectors |
-| Multi-tenancy | Shared schema + RLS | Schema-per-tenant: higher isolation but 10× migration complexity; DB-per-tenant: cost-prohibitive |
+| Multi-tenancy | Shared schema + `userId` filters in app queries | Schema-per-tenant: higher isolation but 10× migration complexity; DB-per-tenant: cost-prohibitive |
 | Background jobs | BullMQ + Redis | In-process cron: no retries or observability; SQS/Lambda: cloud lock-in |
 | LLM streaming | SSE | WebSockets: bidirectional not needed; SSE is simpler and proxy-friendly |
 | JD storage | Global content-addressed by hash | Per-user: duplicates parse cost for shared jobs |
@@ -274,10 +265,10 @@ Pursuit/
 │       │   └── resumeUpload/ # PDF text extraction + LLM structuring
 │       ├── lib/              # db · redis · llm · cache · jwt · env
 │       ├── prompts/          # LLM prompt builders
-│       └── middleware/       # auth (JWT + RLS) · csrf · rate-limit
+│       └── middleware/       # auth (JWT) · csrf · rate-limit
 │
 ├── prisma/
-│   ├── schema.prisma         # 10 models, RLS-ready
+│   ├── schema.prisma         # 10 models, tenant via userId in queries
 │   └── migrations/
 │
 ├── evals/                    # LLM prompt evaluation suite

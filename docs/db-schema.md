@@ -189,7 +189,7 @@ Stores LLM analysis results. `kind` discriminates the three types:
 A follow-up nudge generated when an application has been silent for N days. `windowKey` prevents duplicate reminders for the same silence window per application (`@@unique([applicationId, windowKey])`). Partial index on `applicationId WHERE dismissedAt IS NULL` keeps the active-reminders query fast; dismissed rows are never queried again.
 
 ### `DiscoveredJob`
-**Global shared content. No `userId`, no RLS.** Careers page listings scraped by the discovery worker from 130+ companies via TinyFish. One scan serves all users.
+**Global shared content. No `userId`.** Careers page listings scraped by the discovery worker from 130+ companies via TinyFish. One scan serves all users.
 
 - `techStack` — extracted during per-user LLM scoring and stored here (it's a property of the job, not the user).
 - `url` — globally unique. Upsert-on-conflict deduplicates across scan runs.
