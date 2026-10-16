@@ -1,16 +1,20 @@
 import { z } from 'zod'
 import { Stage } from '@prisma/client'
 
-export const CreateApplicationSchema = z.object({
-  url: z.string().url().optional(),
-  rawJd: z.string().optional(),
-  company: z.string().min(1),
-  roleTitle: z.string().min(1),
-  source: z.string().optional(),
-  salaryText: z.string().optional(),
-  location: z.string().optional(),
-  deadline: z.string().datetime().optional(),
-})
+export const CreateApplicationSchema = z
+  .object({
+    url: z.string().url().optional(),
+    rawJd: z.string().optional(),
+    company: z.string().min(1),
+    roleTitle: z.string().min(1),
+    source: z.string().optional(),
+    salaryText: z.string().optional(),
+    location: z.string().optional(),
+    deadline: z.string().datetime().optional(),
+  })
+  .refine((d) => Boolean(d.url?.trim() || d.rawJd?.trim()), {
+    message: 'Paste a job URL or the full job description.',
+  })
 
 export const UpdateApplicationSchema = z.object({
   stage: z.nativeEnum(Stage).optional(),

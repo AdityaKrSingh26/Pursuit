@@ -3,6 +3,7 @@ import { prisma } from '../lib/db.js'
 import { chat, chatStream } from '../lib/llm.js'
 import { parseJsonFromLlm } from '../lib/llmJson.js'
 import { consumeLlmQuota } from '../middleware/rateLimitLlm.js'
+import { resolveLlmModel } from '../lib/resolveLlmModel.js'
 
 export function computeCost(model, usage) {
   const input = usage.input_tokens || 0
@@ -13,6 +14,9 @@ export function computeCost(model, usage) {
   if (m.includes('sonnet') || m.includes('claude-3-5') || m.includes('claude-sonnet')) return (input * 3 + output * 15) / 1_000_000
   if (m.includes('haiku')) return (input * 0.25 + output * 1.25) / 1_000_000
   if (m.includes('opus')) return (input * 15 + output * 75) / 1_000_000
+  // Groq GPT-OSS (check before generic gpt-4*)
+  if (m.includes('gpt-oss-120b')) return (input * 0.15 + output * 0.6) / 1_000_000
+  if (m.includes('gpt-oss-20b')) return (input * 0.075 + output * 0.3) / 1_000_000
   // OpenAI
   if (m.includes('gpt-4o-mini')) return (input * 0.15 + output * 0.6) / 1_000_000
   if (m.includes('gpt-4o')) return (input * 2.5 + output * 10) / 1_000_000
@@ -74,7 +78,10 @@ async function _validateWithRetry(responseText, schema, systemPrompt, userMessag
 
 async function _writeAnalysis(params, validatedData, usage) {
   const { applicationId, kind, jdHash, resumeHash, resumeVersionId, promptVersion } = params
-  const costUsd = computeCost(env.LLM_MODEL, usage)
+  const costUsd = computeCost(
+    resolveLlmModel({ baseUrl: env.LLM_BASE_URL, model: env.LLM_MODEL }),
+    usage,
+  )
 
   await prisma.analysis.create({
     data: {

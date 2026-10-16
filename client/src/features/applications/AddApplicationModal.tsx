@@ -27,6 +27,12 @@ export default function AddApplicationModal({ onClose }: { onClose: () => void }
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    const hasUrl = mode === 'url' && form.url.trim()
+    const hasJd = mode === 'text' && form.rawJd.trim()
+    if (!hasUrl && !hasJd) {
+      setError('Paste a job URL or the full job description.')
+      return
+    }
     try {
       await create.mutateAsync({
         company: form.company.trim(),
@@ -103,7 +109,7 @@ export default function AddApplicationModal({ onClose }: { onClose: () => void }
             />
           )}
           <p className="mt-1.5 font-mono text-[10px] text-ink-faint">
-            Optional. Leave blank to track manually and add the JD later.
+            Required. Paste a job URL or the full description so we can parse the role.
           </p>
         </div>
 

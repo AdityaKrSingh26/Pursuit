@@ -10,6 +10,9 @@ import crypto from 'crypto'
 export async function createApplication(userId, data) {
   // Destructure to separate model columns from ingestion-only input fields
   const { url, rawJd, ...dbData } = data
+  if (!url && !rawJd) {
+    throw AppError.badRequest('Paste a job URL or the full job description.')
+  }
 
   let jd
   if (url) {

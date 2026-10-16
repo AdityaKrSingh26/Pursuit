@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '../../components/ui'
 import { streamAnalysis } from '../../lib/sse'
@@ -33,27 +33,19 @@ export default function GapAnalysisTab({ appId, parsed }: { appId: string; parse
   const qc = useQueryClient()
   const cached = useLatestAnalysis(appId, 'GAP')
   const [streaming, setStreaming] = useState(false)
-  const [summary, setSummary] = useState('')
   const [result, setResult] = useState<GapAnalysis | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const summaryRef = useRef<HTMLDivElement>(null)
 
   const cachedResult = (cached.data?.result as GapAnalysis | undefined) ?? null
   const view = result ?? cachedResult
 
-  useEffect(() => {
-    summaryRef.current?.scrollTo({ top: summaryRef.current.scrollHeight })
-  }, [summary])
-
   async function run() {
     setStreaming(true)
     setError(null)
-    setSummary('')
     setResult(null)
     try {
       await streamAnalysis<GapAnalysis>(`/applications/${appId}/analysis/gap`, (ev) => {
-        if (ev.type === 'token') setSummary((s) => s + ev.content)
-        else if (ev.type === 'result') setResult(ev.data)
+        if (ev.type === 'result') setResult(ev.data)
         else if (ev.type === 'error') setError(ev.message)
       })
       qc.invalidateQueries({ queryKey: ['analysis', appId, 'GAP'] })
@@ -89,18 +81,19 @@ export default function GapAnalysisTab({ appId, parsed }: { appId: string; parse
         </p>
       )}
 
-      {(streaming || summary || view) && (
+      {(streaming || view) && (
         <div className="grid grid-cols-[1fr_auto] items-start gap-5">
           <div>
             <p className="label mb-1.5">Summary</p>
-            <div
-              ref={summaryRef}
-              className="max-h-40 overflow-y-auto whitespace-pre-wrap border-[1.5px] border-line bg-paper-3 p-3 text-sm leading-relaxed"
-            >
-              {summary || view?.overallSummary || (
-                <span className="text-ink-faint">Waiting for tokens…</span>
+            <div className="max-h-40 overflow-y-auto whitespace-pre-wrap border-[1.5px] border-line bg-paper-3 p-3 text-sm leading-relaxed">
+              {view?.overallSummary || (
+                <span className="text-ink-faint">
+                  {streaming ? 'Analyzing…' : 'Waiting for tokens…'}
+                </span>
               )}
-              {streaming && <span className="ml-0.5 inline-block animate-blink">▍</span>}
+              {streaming && !view?.overallSummary && (
+                <span className="ml-0.5 inline-block animate-blink">▍</span>
+              )}
             </div>
           </div>
           {view && (
