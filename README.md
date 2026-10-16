@@ -7,6 +7,44 @@ Full-stack job-hunt command center. Tracks applications, runs AI gap analysis + 
 ## Architecture
 
 ```mermaid
+---
+config:
+  look: handDrawn
+  theme: neutral
+---
+flowchart TB
+  subgraph Client["Client"]
+    UI["Pipeline · Ledger · Funnel · Resume<br/>Intel · Follow-ups · Discover"]
+    UI --- TQ["TanStack Query"]
+    UI --- ZS["Zustand"]
+  end
+
+  subgraph API["API — Express"]
+    AUTH["JWT cookie + CSRF"]
+    MODS["applications · resume · analysis<br/>jobs · dashboard · intel"]
+    AUTH --> MODS
+  end
+
+  subgraph Worker["Worker — BullMQ"]
+    W["ingest · embed · discover<br/>score · pdf · resume · reminders"]
+  end
+
+  PG[("Postgres + pgvector")]
+  RD[("Redis")]
+  EXT["Groq · embeddings<br/>TinyFish · Cloudinary"]
+
+  Client -->|"REST + SSE"| API
+  API --> PG
+  API -->|"enqueue"| RD
+  Worker --> PG
+  Worker --> RD
+  Worker --> EXT
+```
+
+<details>
+<summary>Detailed diagram</summary>
+
+```mermaid
 graph TB
     subgraph Client["Client — React 19 + TypeScript + Vite"]
         UI["Pages\nPipeline · Ledger · Funnel · Resume\nIntel · Follow-ups · Discover"]
@@ -65,6 +103,8 @@ graph TB
     Worker --> CDN
     MODS -->|"queue jobs"| REDIS
 ```
+
+</details>
 
 ---
 
