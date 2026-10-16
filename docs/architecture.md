@@ -256,6 +256,6 @@ flowchart TB
 | Auth | HS256 JWT in httpOnly cookie + hashed rotating refresh + double-submit CSRF on resource mutations | localStorage: XSS-exposed; server sessions: fine but JWT handles stateless scaling. Auth POSTs skip CSRF because cookies are SameSite=lax. Same-origin only (Vite proxy / prod static); helmet headers on the API. |
 | Discovery schedule | On-demand Refresh, 12h global cache | Nightly cron: extra worker schedule for a table that is already filled by the first stale requester |
 | Wellfound | Disabled | Keep HTML scrape: no official API, ToS-sensitive, brittle `__NEXT_DATA__` |
-| Server language | JavaScript | TypeScript later: the API is stable JS; a migration is its own project |
+| Server language | JavaScript | The API stays JavaScript |
 | Soft deletes | `deletedAt` timestamp | Hard delete: no undo, no GDPR audit trail |
 | Dashboard aggregation | Materialized view + Redis cache | Raw query on every request: O(rows) per page load |
